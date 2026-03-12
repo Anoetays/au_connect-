@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:au_connect/theme/app_theme.dart';
+import 'package:au_connect/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ApplicantSignInScreen extends StatefulWidget {
   const ApplicantSignInScreen({super.key});
@@ -12,6 +14,54 @@ class ApplicantSignInScreen extends StatefulWidget {
 class _ApplicantSignInScreenState extends State<ApplicantSignInScreen> {
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  bool _isLoading = false;
+
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signIn() async {
+    if (_emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter email and password')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signInWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/applicant_dashboard');
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Authentication failed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An unexpected error occurred')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +218,7 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen> {
           ),
         ),
         TextField(
+          controller: _emailController,
           keyboardType: TextInputType.emailAddress,
            decoration: InputDecoration(
               hintText: 'name@example.com',
@@ -220,6 +271,7 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen> {
           ),
         ),
         TextField(
+          controller: _passwordController,
           obscureText: _obscurePassword,
            decoration: InputDecoration(
               hintText: 'Enter your password',
@@ -286,9 +338,7 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ElevatedButton(
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/applicant_dashboard');
-            },
+            onPressed: _isLoading ? null : _signIn,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,
@@ -299,14 +349,23 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen> {
               elevation: 4, 
               shadowColor: AppTheme.primary.withOpacity(0.25),
             ),
-             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                SizedBox(width: 8),
-                Icon(Symbols.login, size: 18),
-              ],
-            ),
+             child: _isLoading 
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      SizedBox(width: 8),
+                      Icon(Symbols.login, size: 18),
+                    ],
+                  ),
         ),
 
         const SizedBox(height: 16),

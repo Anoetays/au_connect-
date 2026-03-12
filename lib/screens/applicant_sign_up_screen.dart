@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:au_connect/theme/app_theme.dart';
+import 'package:au_connect/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ApplicantSignUpScreen extends StatefulWidget {
   const ApplicantSignUpScreen({super.key});
@@ -10,7 +12,14 @@ class ApplicantSignUpScreen extends StatefulWidget {
 }
 
 class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
+  final _emailController = TextEditingController();
+  final _confirmEmailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
   double _passwordStrength = 0.0;
   String _strengthLabel = 'Weak';
   Color _strengthColor = Colors.grey;
@@ -23,8 +32,73 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _confirmEmailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _signUp() async {
+    final email = _emailController.text.trim();
+    final confirmEmail = _confirmEmailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (email.isEmpty || confirmEmail.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    if (email != confirmEmail) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Emails do not match')),
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password should be at least 6 characters')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signUpWithEmailAndPassword(email, password);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account created successfully')),
+        );
+        Navigator.pushReplacementNamed(context, '/applicant_dashboard');
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Sign up failed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An unexpected error occurred')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _checkPasswordStrength() {
@@ -150,12 +224,14 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildTextField(
+            controller: _emailController,
             label: 'Email Address',
             hint: 'e.g. name@example.com',
             isDark: isDark,
           ),
           const SizedBox(height: 20),
           _buildTextField(
+            controller: _confirmEmailController,
             label: 'Confirm Email Address',
             hint: 'Repeat your email',
             isDark: isDark,
@@ -174,6 +250,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
           const SizedBox(height: 20),
 
           _buildTextField(
+            controller: _confirmPasswordController,
             label: 'Confirm Password',
             hint: 'Repeat your password',
             isDark: isDark,
@@ -182,7 +259,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
           const SizedBox(height: 32),
           
           ElevatedButton(
-            onPressed: () {},
+            onPressed: _isLoading ? null : _signUp,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFD32F2F), // Muted red like design
               foregroundColor: Colors.white,
@@ -192,7 +269,16 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
               ),
               elevation: 0,
             ),
-            child: const Text('Create Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: _isLoading 
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text('Create Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
