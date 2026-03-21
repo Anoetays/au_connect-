@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ApplicantSignInScreen extends StatefulWidget {
   const ApplicantSignInScreen({super.key});
@@ -42,18 +42,18 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen> {
         _passwordController.text.trim(),
       );
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/applicant_dashboard');
+        Navigator.pushReplacementNamed(context, '/applicant_type_selection');
       }
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Authentication failed')),
+          SnackBar(content: Text(e.message)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('An unexpected error occurred')),
+          SnackBar(content: Text('Sign-in failed: ${e.toString()}')),
         );
       }
     } finally {
@@ -278,6 +278,7 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen> {
               prefixIcon: const Icon(Symbols.lock, size: 24),
               suffixIcon: IconButton(
                 icon: Icon(_obscurePassword ? Symbols.visibility : Symbols.visibility_off),
+                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () {
                   setState(() {
                     _obscurePassword = !_obscurePassword;

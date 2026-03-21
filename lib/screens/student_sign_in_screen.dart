@@ -20,6 +20,7 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Symbols.arrow_back),
+          tooltip: 'Back',
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -169,6 +170,7 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
               prefixIcon: const Icon(Symbols.lock, size: 24),
               suffixIcon: IconButton(
                 icon: Icon(_obscurePassword ? Symbols.visibility : Symbols.visibility_off),
+                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () {
                   setState(() {
                     _obscurePassword = !_obscurePassword;

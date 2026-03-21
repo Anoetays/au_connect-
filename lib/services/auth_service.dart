@@ -1,21 +1,24 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   // Stream to listen to auth state changes
-  Stream<User?> get user => _auth.authStateChanges();
+  Stream<AuthState> get user => _supabase.auth.onAuthStateChange;
+
+  // Get current user
+  User? get currentUser => _supabase.auth.currentUser;
 
   // Sign in with email and password
-  Future<UserCredential?> signInWithEmailAndPassword(String email, String password) async {
+  Future<AuthResponse> signInWithEmailAndPassword(String email, String password) async {
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      final response = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );
-      return userCredential;
-    } on FirebaseAuthException catch (e) {
+      return response;
+    } on AuthException catch (e) {
       debugPrint('Sign-in error: ${e.message}');
       rethrow;
     } catch (e) {
@@ -25,14 +28,14 @@ class AuthService {
   }
 
   // Register with email and password
-  Future<UserCredential?> signUpWithEmailAndPassword(String email, String password) async {
+  Future<AuthResponse> signUpWithEmailAndPassword(String email, String password) async {
     try {
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      final response = await _supabase.auth.signUp(
         email: email,
         password: password,
       );
-      return userCredential;
-    } on FirebaseAuthException catch (e) {
+      return response;
+    } on AuthException catch (e) {
       debugPrint('Sign-up error: ${e.message}');
       rethrow;
     } catch (e) {
@@ -44,7 +47,7 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
-      await _auth.signOut();
+      await _supabase.auth.signOut();
     } catch (e) {
       debugPrint('Sign-out error: $e');
       rethrow;

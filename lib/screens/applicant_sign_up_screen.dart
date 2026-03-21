@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ApplicantSignUpScreen extends StatefulWidget {
   const ApplicantSignUpScreen({super.key});
@@ -80,18 +80,18 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Account created successfully')),
         );
-        Navigator.pushReplacementNamed(context, '/applicant_dashboard');
+        Navigator.pushReplacementNamed(context, '/applicant_type_selection');
       }
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Sign up failed')),
+          SnackBar(content: Text(e.message)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('An unexpected error occurred')),
+          SnackBar(content: Text('Sign up failed: ${e.toString()}')),
         );
       }
     } finally {
@@ -145,6 +145,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
          backgroundColor: isDark ? AppTheme.backgroundDark : const Color(0xFFF8FAFC),
         leading: IconButton(
           icon: Icon(Symbols.arrow_back, color: isDark ? AppTheme.textLight : const Color(0xFF475569)), // slate-600
+          tooltip: 'Back',
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(

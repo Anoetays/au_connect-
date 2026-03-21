@@ -114,6 +114,7 @@ class _AdminSignInScreenState extends State<AdminSignInScreen> {
           ),
           IconButton(
              onPressed: () => Navigator.pop(context), // Let's use as back button since no help action
+             tooltip: 'Back',
              icon: Icon(
                 Symbols.help_outline,
                 color: isDark ? Colors.grey[400] : Colors.grey[500],
@@ -219,6 +220,7 @@ class _AdminSignInScreenState extends State<AdminSignInScreen> {
               prefixIcon: const Icon(Symbols.lock, size: 20),
               suffixIcon: IconButton(
                 icon: Icon(_obscurePassword ? Symbols.visibility : Symbols.visibility_off, size: 20),
+                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () {
                   setState(() {
                     _obscurePassword = !_obscurePassword;

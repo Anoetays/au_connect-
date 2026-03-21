@@ -18,7 +18,6 @@ class AppTheme {
       brightness: Brightness.light,
       colorScheme: const ColorScheme.light(
         primary: primary,
-        background: backgroundLight,
         surface: Colors.white,
       ),
       scaffoldBackgroundColor: backgroundLight,
@@ -29,6 +28,48 @@ class AppTheme {
         iconTheme: IconThemeData(color: textDark),
         titleTextStyle: TextStyle(color: textDark, fontSize: 18, fontWeight: FontWeight.bold),
       ),
+      cardTheme: const CardThemeData(
+        color: Colors.white,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+        margin: EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primary,
+          side: const BorderSide(color: primary),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+        contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: backgroundLight,
+        selectedItemColor: primary,
+        unselectedItemColor: const Color(0xFF94A3B8),
+        selectedIconTheme: const IconThemeData(size: 24),
+        unselectedIconTheme: const IconThemeData(size: 22),
+        type: BottomNavigationBarType.fixed,
+      ),
     );
   }
 
@@ -38,7 +79,6 @@ class AppTheme {
       brightness: Brightness.dark,
       colorScheme: const ColorScheme.dark(
         primary: primary,
-        background: backgroundDark,
         surface: Color(0xFF0F172A), // slate-900
       ),
       scaffoldBackgroundColor: backgroundDark,
@@ -48,6 +88,48 @@ class AppTheme {
         elevation: 0,
         iconTheme: IconThemeData(color: textLight),
         titleTextStyle: TextStyle(color: textLight, fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      cardTheme: const CardThemeData(
+        color: Color(0xFF0F172A),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+        margin: EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primary,
+          side: const BorderSide(color: primary),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+        contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: backgroundDark,
+        selectedItemColor: primary,
+        unselectedItemColor: const Color(0xFF94A3B8),
+        selectedIconTheme: const IconThemeData(size: 24),
+        unselectedIconTheme: const IconThemeData(size: 22),
+        type: BottomNavigationBarType.fixed,
       ),
     );
   }
