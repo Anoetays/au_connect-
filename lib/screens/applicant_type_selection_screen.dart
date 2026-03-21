@@ -32,6 +32,16 @@ class ApplicantTypeSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               _SelectionCard(
+                icon: Symbols.home,
+                title: 'Local Applicant',
+                description: 'Zimbabwean citizens applying to study at Africa University.',
+                onTap: () => Navigator.pushReplacementNamed(
+                  context,
+                  '/local_applicant_welcome',
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SelectionCard(
                 icon: Symbols.school,
                 title: 'First-Year Application',
                 description: 'High school students applying to university for the first time.',

@@ -10,6 +10,7 @@ import 'package:au_connect/screens/applicant_dashboard_screen.dart';
 import 'package:au_connect/screens/transfer_applicant_dashboard_screen.dart';
 import 'package:au_connect/screens/applicant_sign_up_screen.dart';
 import 'package:au_connect/screens/applicant_type_selection_screen.dart';
+import 'package:au_connect/screens/local_applicant_welcome_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,6 +53,7 @@ class AuConnectApp extends StatelessWidget {
         },
         '/applicant_sign_up': (context) => const ApplicantSignUpScreen(),
         '/applicant_type_selection': (context) => const ApplicantTypeSelectionScreen(),
+        '/local_applicant_welcome': (context) => const LocalApplicantWelcomeScreen(),
       },
     );
   }

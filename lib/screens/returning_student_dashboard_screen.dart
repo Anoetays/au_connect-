@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/models/returning_student_data.dart';
 
 /// Mock service to simulate fetching returning student profile data from a backend.
@@ -707,7 +706,7 @@ class _ReturningStudentDashboardScreenState
             // CTA Button
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.elevated(
+              child: ElevatedButton(
                 onPressed: () {
                   debugPrint('Continue where you left off tapped');
                 },
