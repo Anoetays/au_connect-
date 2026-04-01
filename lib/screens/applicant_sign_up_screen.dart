@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:au_connect/l10n/app_localizations.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:au_connect/theme/app_theme.dart';
@@ -117,7 +118,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
         if (password.contains(RegExp(r'[A-Z]')) && password.contains(RegExp(r'[0-9]'))) {
           strength = 0.75;
           label = 'Strong';
-          color = const Color(0xFF22C55E); // green-500
+          color = AppTheme.statusApproved; // green-500
           if (password.contains(RegExp(r'[!@#\$&*~]'))) {
             strength = 1.0;
              label = 'Very Strong';
@@ -137,14 +138,15 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.backgroundDark : const Color(0xFFF8FAFC), // slate-50
+      backgroundColor: AppTheme.surface,
       appBar: AppBar(
-         backgroundColor: isDark ? AppTheme.backgroundDark : const Color(0xFFF8FAFC),
+        backgroundColor: AppTheme.surface,
         leading: IconButton(
-          icon: Icon(Symbols.arrow_back, color: isDark ? AppTheme.textLight : const Color(0xFF475569)), // slate-600
+          icon: Icon(Symbols.arrow_back, color: isDark ? AppTheme.textLight : AppTheme.textSecondary), // slate-600
           tooltip: 'Back',
           onPressed: () => Navigator.pop(context),
         ),
@@ -153,7 +155,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: isDark ? AppTheme.textLight.withOpacity(0.5) : const Color(0xFFE2E8F0), // Very faint in the design
+            color: isDark ? AppTheme.textLight.withValues(alpha: 0.5) : AppTheme.border, // Very faint in the design
           ),
         ),
         centerTitle: true,
@@ -168,7 +170,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
               children: [
                 _buildHeader(isDark),
                 const SizedBox(height: 32),
-                _buildFormCard(isDark),
+                _buildFormCard(isDark, l10n),
                 const SizedBox(height: 32),
                 _buildFooterLinks(isDark),
                 const SizedBox(height: 40),
@@ -190,7 +192,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
             fontSize: 28,
             fontWeight: FontWeight.bold,
             height: 1.2,
-            color: isDark ? AppTheme.textLight : const Color(0xFF0F172A), // slate-900
+            color: isDark ? AppTheme.textLight : AppTheme.textPrimary, // slate-900
           ),
         ),
         const SizedBox(height: 12),
@@ -199,23 +201,23 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
           style: TextStyle(
             fontSize: 15,
             height: 1.4,
-            color: isDark ? Colors.grey[400] : const Color(0xFF64748B), // slate-500
+            color: isDark ? Colors.grey[400] : AppTheme.textMuted, // slate-500
           ),
         ),
       ],
     );
   }
 
-  Widget _buildFormCard(bool isDark) {
+  Widget _buildFormCard(bool isDark, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: isDark ? AppTheme.textPrimary : AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           if (!isDark)
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -226,21 +228,21 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
         children: [
           _buildTextField(
             controller: _emailController,
-            label: 'Email Address',
+            label: l10n.email,
             hint: 'e.g. name@example.com',
             isDark: isDark,
           ),
           const SizedBox(height: 20),
           _buildTextField(
             controller: _confirmEmailController,
-            label: 'Confirm Email Address',
+            label: l10n.confirmEmail,
             hint: 'Repeat your email',
             isDark: isDark,
           ),
           const SizedBox(height: 20),
           
           _buildTextField(
-             label: 'Password',
+             label: l10n.password,
              hint: 'At least 8 characters',
              isDark: isDark,
              isPassword: true,
@@ -252,7 +254,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
 
           _buildTextField(
             controller: _confirmPasswordController,
-            label: 'Confirm Password',
+            label: l10n.confirmPassword,
             hint: 'Repeat your password',
             isDark: isDark,
             isPassword: true,
@@ -262,7 +264,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
           ElevatedButton(
             onPressed: _isLoading ? null : _signUp,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFD32F2F), // Muted red like design
+              backgroundColor: AppTheme.primaryCrimson, // Muted red like design
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
@@ -301,27 +303,27 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155), // slate-700
+            color: isDark ? AppTheme.border : AppTheme.textSecondary, // slate-700
           ),
         ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           obscureText: isPassword,
-          style: TextStyle(fontSize: 15, color: isDark ? Colors.white : const Color(0xFF475569)),
+          style: TextStyle(fontSize: 15, color: isDark ? Colors.white : AppTheme.textSecondary),
           decoration: InputDecoration(
              hintText: hint,
-             hintStyle: TextStyle(color: isDark ? Colors.grey[600] : const Color(0xFF94A3B8)), // slate-400
+             hintStyle: TextStyle(color: isDark ? Colors.grey[600] : AppTheme.textMuted), // slate-400
              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
              filled: true,
-             fillColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+             fillColor: isDark ? AppTheme.textPrimary : AppTheme.surface,
              border: OutlineInputBorder(
                borderRadius: BorderRadius.circular(8),
-               borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+               borderSide: BorderSide(color: isDark ? AppTheme.textSecondary : AppTheme.border),
              ),
              enabledBorder: OutlineInputBorder(
                borderRadius: BorderRadius.circular(8),
-               borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)), // slate-100
+               borderSide: BorderSide(color: isDark ? AppTheme.textSecondary : AppTheme.border), // slate-100
              ),
              focusedBorder: OutlineInputBorder(
                borderRadius: BorderRadius.circular(8),
@@ -359,7 +361,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
           children: [
             const Text(
               'Strength: ',
-              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
             ),
             Text(
                _passwordStrength == 0 ? '' : _strengthLabel,
@@ -380,7 +382,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
               Text(
                 'Already have an account? ',
                 style: TextStyle(
-                  color: isDark ? Colors.grey[400] : const Color(0xFF64748B),
+                  color: isDark ? Colors.grey[400] : AppTheme.textMuted,
                   fontSize: 14,
                 ),
               ),
@@ -403,7 +405,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
         Text(
           '© 2026 AU Connect Applicant Portal',
           style: TextStyle(
-             color: isDark ? Colors.grey[500] : const Color(0xFF94A3B8),
+             color: isDark ? Colors.grey[500] : AppTheme.textMuted,
              fontSize: 12,
           ),
         ),

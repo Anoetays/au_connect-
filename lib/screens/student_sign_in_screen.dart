@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
+import 'package:au_connect/l10n/app_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:au_connect/theme/app_theme.dart';
+import 'package:au_connect/services/auth_service.dart';
 
 class StudentSignInScreen extends StatefulWidget {
   const StudentSignInScreen({super.key});
@@ -9,41 +12,183 @@ class StudentSignInScreen extends StatefulWidget {
   State<StudentSignInScreen> createState() => _StudentSignInScreenState();
 }
 
-class _StudentSignInScreenState extends State<StudentSignInScreen> {
+class _StudentSignInScreenState extends State<StudentSignInScreen>
+    with SingleTickerProviderStateMixin {
   bool _obscurePassword = true;
+  bool _rememberMe = false;
+  bool _isLoading = false;
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+  final _emailCtrl    = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _authService  = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _anim = CurvedAnimation(
+        parent: _ctrl, curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signIn() async {
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text.trim();
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your student email and password')),
+      );
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signInWithEmailAndPassword(email, password);
+      if (mounted) Navigator.pushReplacementNamed(context, '/student_dashboard');
+    } on AuthException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sign-in failed: ${e.toString()}')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    final emailCtrl = TextEditingController(text: _emailCtrl.text.trim());
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final l10n = AppLocalizations.of(ctx)!;
+        return AlertDialog(
+          title: Text(l10n.resetPassword,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text(
+              'Enter your student email and we will send a password reset link.',
+              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'student@africau.edu',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppTheme.primary),
+                ),
+              ),
+            ),
+          ]),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l10n.cancel, style: const TextStyle(color: AppTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+              onPressed: () async {
+                final email = emailCtrl.text.trim();
+                if (email.isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  await _authService.resetPassword(email);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Reset link sent to $email'),
+                      backgroundColor: AppTheme.statusApproved,
+                    ));
+                  }
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: ${e.toString()}')));
+                }
+              },
+              child: Text(l10n.sendResetLink),
+            ),
+          ],
+        );
+      },
+    );
+    emailCtrl.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Symbols.arrow_back),
-          tooltip: 'Back',
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      backgroundColor: AppTheme.surface,
       body: Stack(
         children: [
-          _buildBackgroundDecoration(),
+          _Blob(top: -160, right: -120, size: 400, opacity: 0.09),
+          _Blob(bottom: -180, left: -100, size: 460, opacity: 0.08),
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: Container(
+              height: 3,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  AppTheme.primaryDark, AppTheme.primary, Color(0xFFE85070), AppTheme.primary
+                ]),
+              ),
+            ),
+          ),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildHeader(isDark),
-                      const SizedBox(height: 32),
-                      _buildForm(isDark),
-                      const SizedBox(height: 32),
-                      _buildFooter(isDark),
-                      const SizedBox(height: 40), // Bottom padding
-                    ],
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: AnimatedBuilder(
+                  animation: _anim,
+                  builder: (context, child) => Opacity(
+                    opacity: _anim.value,
+                    child: Transform.translate(
+                      offset: Offset(0, 22 * (1 - _anim.value)),
+                      child: child,
+                    ),
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primary.withValues(alpha: 0.10),
+                            blurRadius: 80,
+                            offset: const Offset(0, 24),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildNav(context),
+                          _buildHero(),
+                          _buildForm(l10n),
+                          _buildActions(context),
+                          _buildFooter(),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -54,278 +199,553 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
     );
   }
 
-  Widget _buildHeader(bool isDark) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: AppTheme.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildNav(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _NavBackButton(onTap: () => Navigator.pop(context)),
           ),
-          child: const Icon(
-            Symbols.school,
-            color: AppTheme.primary,
-            size: 36,
-            fill: 0,
+          Text(
+            'AU Connect',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textPrimary,
+              letterSpacing: 0.3,
+              fontFamily: GoogleFonts.dmSans().fontFamily,
+            ),
           ),
-        ),
-        Text(
-          'AU Connect',
-          style: TextStyle(
-            fontSize: 30, // closest to text-3xl
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
-            color: isDark ? AppTheme.textLight : AppTheme.textDark,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Sign in to your student account',
-          style: TextStyle(
-            fontSize: 18,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildForm(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : Colors.white, // slate-900 or white
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0), // slate-800 or slate-200
+  Widget _buildHero() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
+      child: Column(
+        children: [
+          _LogoRing(),
+          const SizedBox(height: 16),
+          const Text(
+            'AFRICA UNIVERSITY',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 3.5,
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 30,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.textPrimary,
+                letterSpacing: -0.5,
+                height: 1.1,
+              ),
+              children: const [
+                TextSpan(text: 'Student '),
+                TextSpan(
+                  text: 'Portal',
+                  style: TextStyle(
+                      color: AppTheme.primary, fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Sign in to your student account',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w300,
+              color: AppTheme.textMuted,
+              height: 1.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildForm(AppLocalizations l10n) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
+      child: Column(
+        children: [
+          _FieldBox(
+            label: 'Student Email',
+            hint: 'e.g. student@africau.edu',
+            prefixIcon: Icons.person_outline_rounded,
+            keyboardType: TextInputType.emailAddress,
+            controller: _emailCtrl,
+          ),
+          const SizedBox(height: 14),
+          _FieldBox(
+            label: l10n.password,
+            hint: 'Enter your password',
+            prefixIcon: Icons.lock_outline_rounded,
+            obscure: _obscurePassword,
+            showToggle: true,
+            controller: _passwordCtrl,
+            onToggle: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            labelSuffix: GestureDetector(
+              onTap: () => _showForgotPasswordDialog(),
+              child: Text(
+                l10n.forgotPassword,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () => setState(() => _rememberMe = !_rememberMe),
+            child: Row(
+              children: [
+                _Checkbox(value: _rememberMe),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.rememberMe,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w300,
+                    color: AppTheme.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActions(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+      child: GestureDetector(
+        onTap: _isLoading ? null : _signIn,
+        child: _isLoading
+            ? Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppTheme.primary, AppTheme.primaryDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  ),
+                ),
+              )
+            : _PrimaryButton(label: l10n.signIn, icon: Icons.login_rounded),
+      ),
+    );
+  }
+
+  Widget _buildFooter() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
+      child: Column(
+        children: [
+          const Divider(color: AppTheme.primaryLight, thickness: 1),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.center,
+            children: [
+              const Text(
+                'Need help? Contact the ',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w300,
+                  color: AppTheme.textMuted,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/chatbot_dashboard'),
+                child: const Text(
+                  "Registrar's Office",
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Shared private widgets ────────────────────────────────────────────────────
+
+class _Blob extends StatelessWidget {
+  final double? top, bottom, left, right, size;
+  final double opacity;
+  const _Blob({this.top, this.bottom, this.left, this.right, required this.size, required this.opacity});
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+        top: top, bottom: bottom, left: left, right: right,
+        child: IgnorePointer(
+          child: Container(
+            width: size, height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  AppTheme.primary.withValues(alpha: opacity),
+                  AppTheme.primary.withValues(alpha: opacity * 0.4),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.6, 0.85],
+              ),
+            ),
+          ),
         ),
+      );
+}
+
+class _NavBackButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _NavBackButton({required this.onTap});
+
+  @override
+  State<_NavBackButton> createState() => _NavBackButtonState();
+}
+
+class _NavBackButtonState extends State<_NavBackButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 34, height: 34,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppTheme.surface,
+            border: Border.all(
+              color: _hovered
+                  ? AppTheme.primary
+                  : AppTheme.primary.withValues(alpha: 0.14),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withValues(alpha: _hovered ? 0.15 : 0.07),
+                blurRadius: _hovered ? 14 : 8,
+              ),
+            ],
+          ),
+          child: const Icon(Icons.chevron_left_rounded, size: 18, color: AppTheme.textPrimary),
+        ),
+      ),
+    );
+  }
+}
+
+class _LogoRing extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 72, height: 72,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        border: Border.all(color: AppTheme.border, width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            spreadRadius: 0,
+            color: AppTheme.primary.withValues(alpha: 0.18),
+            blurRadius: 28, offset: const Offset(0, 8),
           ),
+          BoxShadow(color: AppTheme.primaryLight, spreadRadius: 6),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Student Number
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              'Student Number',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      child: Center(
+        child: Container(
+          width: 48, height: 48,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [AppTheme.primary, AppTheme.primaryDark],
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
           ),
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'e.g. 202400123',
-              prefixIcon: const Icon(Symbols.person, size: 24),
-              filled: true,
-              fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC), // slate-800 or slate-50
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                   color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), // slate-700 or slate-200
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                   color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppTheme.primary, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Password
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Password',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-          TextField(
-            obscureText: _obscurePassword,
-            decoration: InputDecoration(
-              hintText: '••••••••',
-              prefixIcon: const Icon(Symbols.lock, size: 24),
-              suffixIcon: IconButton(
-                icon: Icon(_obscurePassword ? Symbols.visibility : Symbols.visibility_off),
-                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
-              ),
-              filled: true,
-              fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                   color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                   color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppTheme.primary, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-          
-          // Forgot Password
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () {},
-              style: TextButton.styleFrom(
-                foregroundColor: AppTheme.primary,
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text('Forgot Password?', style: TextStyle(fontWeight: FontWeight.w500)),
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Sign In Button
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 4, // shadow-lg approx
-              shadowColor: AppTheme.primary.withOpacity(0.5),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Text('Sign In', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                SizedBox(width: 8),
-                Icon(Symbols.arrow_forward),
-              ],
-            ),
-          ),
-        ],
+          child: const Icon(Icons.school_rounded, color: Colors.white, size: 24),
+        ),
       ),
     );
   }
+}
 
-  Widget _buildFooter(bool isDark) {
+class _FieldBox extends StatefulWidget {
+  final String label;
+  final String hint;
+  final IconData prefixIcon;
+  final bool obscure;
+  final bool showToggle;
+  final VoidCallback? onToggle;
+  final TextInputType? keyboardType;
+  final Widget? labelSuffix;
+  final TextEditingController? controller;
+
+  const _FieldBox({
+    required this.label,
+    required this.hint,
+    required this.prefixIcon,
+    this.obscure = false,
+    this.showToggle = false,
+    this.onToggle,
+    this.keyboardType,
+    this.labelSuffix,
+    this.controller,
+  });
+
+  @override
+  State<_FieldBox> createState() => _FieldBoxState();
+}
+
+class _FieldBoxState extends State<_FieldBox> {
+  final _focus = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() => setState(() => _focused = _focus.hasFocus));
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(child: Divider(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0))), // slate-800 : slate-200
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'NEW TO AU?',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  color: Colors.grey[400],
-                ),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary,
+                letterSpacing: 0.1,
               ),
             ),
-            Expanded(child: Divider(color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0))),
+            if (widget.labelSuffix != null) widget.labelSuffix!,
           ],
         ),
-        const SizedBox(height: 24),
-        Wrap(
-          alignment: WrapAlignment.center,
-          children: [
-            Text(
-              'Contact the ',
-              style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
+        const SizedBox(height: 6),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _focused
+                  ? AppTheme.primary
+                  : AppTheme.primary.withValues(alpha: 0.14),
+              width: 1.5,
             ),
-            InkWell(
-              onTap: () {},
-              child: const Text(
-                "Registrar's Office",
-                style: TextStyle(
-                  color: AppTheme.primary,
-                  fontWeight: FontWeight.w600,
+            boxShadow: _focused
+                ? [BoxShadow(
+                    color: AppTheme.primary.withValues(alpha: 0.09),
+                    spreadRadius: 3, blurRadius: 0)]
+                : [],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0, top: 0, bottom: 0,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    width: _focused ? 3 : 0,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppTheme.primary, AppTheme.primaryDark],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Icon(widget.prefixIcon, size: 18,
+                          color: _focused ? AppTheme.primary : AppTheme.textMuted),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        focusNode: _focus,
+                        controller: widget.controller,
+                        obscureText: widget.obscure,
+                        keyboardType: widget.keyboardType,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w300,
+                          color: AppTheme.textPrimary,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: widget.hint,
+                          hintStyle: const TextStyle(
+                            color: AppTheme.textMuted,
+                            fontWeight: FontWeight.w300,
+                            fontSize: 13.5,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    if (widget.showToggle)
+                      GestureDetector(
+                        onTap: widget.onToggle,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Icon(
+                            widget.obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 18,
+                            color: AppTheme.textMuted,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
-            Text(
-              ' for assistance.',
-              style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
-            ),
-          ],
+          ),
         ),
       ],
     );
   }
-  
-  Widget _buildBackgroundDecoration() {
-    // Replicating the blurred background blobs
-    return Stack(
-      children: [
-        Positioned(
-          top: -100,
-          right: -100,
-          child: Container(
-            width: 300,
-            height: 300,
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withOpacity(0.05),
-              shape: BoxShape.circle,
-            ),
-            // Note: Flutter's ImageFilter.blur is expensive, 
-            // a simpler approach is a soft gradient or just opacity 
-            // but we'll try a rough approximation.
-          ),
+}
+
+class _Checkbox extends StatelessWidget {
+  final bool value;
+  const _Checkbox({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: 18, height: 18,
+      decoration: BoxDecoration(
+        color: value ? AppTheme.primary : Colors.white,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(
+          color: value ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.14),
+          width: 1.5,
         ),
-        Positioned(
-          bottom: -100,
-          left: -100,
-          child: Container(
-             width: 300,
-            height: 300,
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withOpacity(0.05),
-              shape: BoxShape.circle,
-            ),
+      ),
+      child: value
+          ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
+          : null,
+    );
+  }
+}
+
+class _PrimaryButton extends StatefulWidget {
+  final String label;
+  final IconData icon;
+  const _PrimaryButton({required this.label, required this.icon});
+
+  @override
+  State<_PrimaryButton> createState() => _PrimaryButtonState();
+}
+
+class _PrimaryButtonState extends State<_PrimaryButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _hovered ? -2 : 0, 0),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppTheme.primary, AppTheme.primaryDark],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primary.withValues(alpha: _hovered ? 0.42 : 0.38),
+              blurRadius: _hovered ? 32 : 22,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-      ],
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              widget.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(widget.icon, color: Colors.white, size: 16),
+          ],
+        ),
+      ),
     );
   }
 }

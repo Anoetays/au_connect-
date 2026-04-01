@@ -44,6 +44,11 @@ class AuthService {
     }
   }
 
+  // Send password reset email
+  Future<void> resetPassword(String email) async {
+    await _supabase.auth.resetPasswordForEmail(email);
+  }
+
   // Sign out
   Future<void> signOut() async {
     try {
