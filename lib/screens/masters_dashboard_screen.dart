@@ -766,23 +766,30 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
               ),
               const SizedBox(height: 20),
               GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PersonalInformationScreen(
-                      nextRoute: (_) => DocumentUploadScreen(
-                        nextRoute: (_) => MastersPostgradDocsScreen(
-                          nextRoute: (_) => SelectProgramScreen(
-                            nextRoute: (_) => PaymentsScreen(
-                              nextRoute: (_) =>
-                                  const SubmitApplicationScreen(),
+                onTap: () {
+                  if (_application != null) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const ApplicationProgressScreen()));
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PersonalInformationScreen(
+                          nextRoute: (_) => DocumentUploadScreen(
+                            nextRoute: (_) => MastersPostgradDocsScreen(
+                              nextRoute: (_) => SelectProgramScreen(
+                                nextRoute: (_) => PaymentsScreen(
+                                  nextRoute: (_) =>
+                                      const SubmitApplicationScreen(),
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ).then((_) => _loadData()),
+                    ).then((_) => _loadData());
+                  }
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 10),
@@ -801,7 +808,9 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Get Started',
+                        _application != null
+                            ? 'Check Application Progress'
+                            : 'Get Started',
                         style: GoogleFonts.dmSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -1090,9 +1099,9 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: _kRedSoft,
+                color: Colors.transparent,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _kBorder),
+                border: Border.all(color: _kRed, width: 1.5),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1119,9 +1128,13 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F4FF),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEDE7F6), Color(0xFFF3E8FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFCCBBFF)),
+        border: Border.all(color: const Color(0xFFD8B4FE)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1140,7 +1153,7 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
           Text(
             'Ensure your research proposal is approved by a supervisor before submitting. Late proposals may delay your application review.',
             style: GoogleFonts.dmSans(
-                fontSize: 12.5, color: AppTheme.textSecondary, height: 1.5),
+                fontSize: 12.5, color: const Color(0xFF7C3AED), height: 1.5),
           ),
         ],
       ),

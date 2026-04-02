@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
@@ -63,8 +64,6 @@ class NotificationService {
   late SharedPreferences _prefs;
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin = 
       FlutterLocalNotificationsPlugin();
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  
   List<Alert> _alerts = [];
 
   NotificationService._internal();
@@ -114,17 +113,17 @@ class NotificationService {
 
   Future<void> _initializeFirebaseMessaging() async {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Got a message whilst in the foreground!');
-      print('Message data: ${message.data}');
+      debugPrint('Got a message whilst in the foreground!');
+      debugPrint('Message data: ${message.data}');
 
       if (message.notification != null) {
-        print('Message also contained a notification: ${message.notification}');
+        debugPrint('Message also contained a notification: ${message.notification}');
         _handleRemoteNotification(message);
       }
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('A new onMessageOpenedApp event was published!');
+      debugPrint('A new onMessageOpenedApp event was published!');
       _handleRemoteNotification(message);
     });
   }
@@ -184,7 +183,7 @@ class NotificationService {
       await _showLocalNotification(alert);
       await _sendRemoteNotification(alert, recipientId);
     } catch (e) {
-      print('Error sending deadline reminder: $e');
+      debugPrint('Error sending deadline reminder: $e');
     }
   }
 
@@ -214,7 +213,7 @@ class NotificationService {
       await _showLocalNotification(alert);
       await _sendRemoteNotification(alert, recipientId);
     } catch (e) {
-      print('Error sending grade alert: $e');
+      debugPrint('Error sending grade alert: $e');
     }
   }
 
@@ -242,7 +241,7 @@ class NotificationService {
       await _showLocalNotification(alert);
       await _sendRemoteNotification(alert, recipientId);
     } catch (e) {
-      print('Error sending announcement: $e');
+      debugPrint('Error sending announcement: $e');
     }
   }
 
@@ -273,7 +272,7 @@ class NotificationService {
         notificationDetails,
       );
     } catch (e) {
-      print('Error showing local notification: $e');
+      debugPrint('Error showing local notification: $e');
     }
   }
 
@@ -292,7 +291,7 @@ class NotificationService {
           .map((alertJson) => Alert.fromJson(jsonDecode(alertJson)))
           .toList();
     } catch (e) {
-      print('Error loading alerts: $e');
+      debugPrint('Error loading alerts: $e');
     }
   }
 
@@ -309,10 +308,10 @@ class NotificationService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
-        print('Failed to send remote notification: ${response.body}');
+        debugPrint('Failed to send remote notification: ${response.body}');
       }
     } catch (e) {
-      print('Error sending remote notification: $e');
+      debugPrint('Error sending remote notification: $e');
     }
   }
 

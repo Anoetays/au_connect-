@@ -148,8 +148,8 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
       context,
       MaterialPageRoute(
         builder: (_) => PersonalInformationScreen(
-          nextRoute: (_) => DocumentUploadScreen(
-            nextRoute: (_) => SelectProgramScreen(
+          nextRoute: (_) => SelectProgramScreen(
+            nextRoute: (_) => DocumentUploadScreen(
               nextRoute: (_) => PaymentsScreen(
                 nextRoute: (_) => const SubmitApplicationScreen(),
               ),
@@ -306,6 +306,7 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
                       builder: (_) => const ProfileSettingsScreen()),
                 );
               } else if (value == 'logout') {
+                final nav = Navigator.of(context);
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -330,9 +331,7 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
                 if (confirmed == true && mounted) {
                   await SupabaseService.signOut();
                   if (!mounted) return;
-                  // ignore: use_build_context_synchronously
-                  Navigator.pushNamedAndRemoveUntil(
-                      context, '/', (_) => false);
+                  nav.pushNamedAndRemoveUntil('/', (_) => false);
                 }
               }
             },
@@ -793,7 +792,14 @@ class _HomeTabState extends State<_HomeTab> {
                         ),
                         const SizedBox(height: 24),
                         GestureDetector(
-                          onTap: () => _showCountryPicker(context),
+                          onTap: () {
+                            if (widget.application != null) {
+                              Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => const ApplicationProgressScreen()));
+                            } else {
+                              _showCountryPicker(context);
+                            }
+                          },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 22, vertical: 11),
@@ -813,7 +819,9 @@ class _HomeTabState extends State<_HomeTab> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  'Get Started',
+                                  widget.application != null
+                                      ? 'Check Application Progress'
+                                      : 'Get Started',
                                   style: GoogleFonts.dmSans(
                                     fontSize: 13.5,
                                     fontWeight: FontWeight.w600,

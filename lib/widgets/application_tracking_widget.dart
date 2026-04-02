@@ -7,8 +7,8 @@ class ApplicationTrackingWidget extends StatefulWidget {
 
   const ApplicationTrackingWidget({
     required this.applicationId,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<ApplicationTrackingWidget> createState() =>

@@ -201,14 +201,14 @@ class _AuditLogPageState extends State<AuditLogPage> {
             width: 320,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               DropdownButtonFormField<String>(
-                value: action,
+                initialValue: action,
                 decoration: const InputDecoration(labelText: 'Action Type', border: OutlineInputBorder()),
                 items: actionOptions.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
                 onChanged: (v) => setDlg(() => action = v!),
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: staffOptions.contains(staff) ? staff : 'All Staff',
+                initialValue: staffOptions.contains(staff) ? staff : 'All Staff',
                 decoration: const InputDecoration(labelText: 'Staff Member', border: OutlineInputBorder()),
                 items: staffOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                 onChanged: (v) => setDlg(() => staff = v!),

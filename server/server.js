@@ -7,10 +7,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const paynow = new Paynow(
-  process.env.PAYNOW_INTEGRATION_ID,
-  process.env.PAYNOW_INTEGRATION_KEY
-);
+const PAYNOW_INTEGRATION_ID = process.env.PAYNOW_INTEGRATION_ID || '23962';
+const PAYNOW_INTEGRATION_KEY = process.env.PAYNOW_INTEGRATION_KEY || '79947988-9f35-4e6f-8e3b-4f66f13be66c';
+const PAYNOW_MERCHANT_EMAIL = process.env.PAYNOW_MERCHANT_EMAIL || 'anotidatays29@gmail.com';
+
+const paynow = new Paynow(PAYNOW_INTEGRATION_ID, PAYNOW_INTEGRATION_KEY);
 
 paynow.resultUrl = 'https://example.com/paynow/result';
 paynow.returnUrl = 'https://example.com/paynow/return';
@@ -28,7 +29,7 @@ app.post('/api/pay', async (req, res) => {
   }
 
   try {
-    const payment = paynow.createPayment(reference, process.env.PAYNOW_MERCHANT_EMAIL);
+    const payment = paynow.createPayment(reference, PAYNOW_MERCHANT_EMAIL);
     payment.add(reference, amount);
 
     const response = await paynow.sendMobile(payment, phone, 'ecocash');

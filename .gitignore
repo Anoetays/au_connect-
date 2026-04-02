@@ -45,7 +45,8 @@ app.*.map.json
 /android/app/release
 
 # Environment variables
-.env
+# .env is intentionally committed so cloners can run the project immediately
+# .env
 
 # Claude Code local settings
 .claude/settings.local.json

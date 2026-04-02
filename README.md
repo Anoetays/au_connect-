@@ -1,16 +1,52 @@
-# au_connect
+# AU Connect
 
-A new Flutter project.
+Africa University student portal — built with Flutter + Supabase.
 
-## Getting Started
+## Clone & Run (3 steps)
 
-This project is a starting point for a Flutter application.
+### 1. Install dependencies
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 2. Start the Paynow payment server
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+cd server
+npm install
+node server.js
+```
+
+Keep this terminal running in the background.
+
+### 3. Run the app
+
+```bash
+cd ..
+flutter run
+```
+
+That's it. All credentials are included — no extra setup needed.
+
+---
+
+## What's included
+
+| Feature | Status |
+|---|---|
+| Student / Admin sign in | Ready |
+| Application & document upload | Ready |
+| Programme selection | Ready |
+| Payments (EcoCash via Paynow) | Ready |
+| AI Chatbot (Gemini) | Ready |
+| Notifications & Alerts | Ready |
+| Messaging | Ready |
+| Admin dashboard | Ready |
+| Multilingual (EN, FR, PT, SW) | Ready |
+
+## Requirements
+
+- Flutter SDK ^3.9.0
+- Node.js (for the payment server)
+- Android emulator or physical device

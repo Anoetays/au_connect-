@@ -1,43 +1,143 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:au_connect/services/notification_service.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:au_connect/services/supabase_service.dart';
+import 'package:au_connect/theme/app_theme.dart';
 import 'package:intl/intl.dart';
 
-class AlertsScreen extends StatefulWidget {
-  const AlertsScreen({Key? key}) : super(key: key);
+// ── colour tokens ─────────────────────────────────────────────────────────────
+const _kRed     = AppTheme.primaryCrimson;
+const _kRedSoft = AppTheme.primaryLight;
+const _kRedMid  = Color(0xFFE8C0C8);
+const _kDark    = AppTheme.textPrimary;
+const _kMuted   = AppTheme.textMuted;
+const _kBorder  = AppTheme.border;
+const _kGreen   = AppTheme.statusApproved;
+const _kBlue    = AppTheme.statusReview;
+const _kAmber   = AppTheme.statusPending;
 
+// ── helpers ───────────────────────────────────────────────────────────────────
+String _timeAgo(String? iso) {
+  if (iso == null) return '';
+  final dt = DateTime.tryParse(iso)?.toLocal();
+  if (dt == null) return '';
+  final d = DateTime.now().difference(dt);
+  if (d.inMinutes < 1) return 'Just now';
+  if (d.inHours < 1) return '${d.inMinutes} min ago';
+  if (d.inDays < 1) return '${d.inHours} hr${d.inHours > 1 ? "s" : ""} ago';
+  if (d.inDays == 1) return 'Yesterday';
+  if (d.inDays < 7) return '${d.inDays} days ago';
+  return DateFormat('MMM d, yyyy').format(dt);
+}
+
+(IconData, Color) _iconForType(String? type) {
+  switch (type) {
+    case 'status_update':    return (Icons.check_circle_outline_rounded, _kGreen);
+    case 'announcement':     return (Icons.campaign_outlined,            _kBlue);
+    case 'new_application':  return (Icons.description_outlined,         _kRed);
+    default:                 return (Icons.notifications_outlined,       _kAmber);
+  }
+}
+
+// ── main widget ───────────────────────────────────────────────────────────────
+class AlertsScreen extends StatefulWidget {
+  const AlertsScreen({super.key});
   @override
   State<AlertsScreen> createState() => _AlertsScreenState();
 }
 
 class _AlertsScreenState extends State<AlertsScreen> {
-  final NotificationService _notificationService = NotificationService();
-  AlertType? _selectedFilter;
+  List<Map<String, dynamic>> _notifs = [];
+  bool _loading = true;
+  StreamSubscription<List<Map<String, dynamic>>>? _sub;
+
+  String? _typeFilter; // null = all, 'status_update', 'announcement'
 
   @override
   void initState() {
     super.initState();
-    _notificationService.initialize();
+    _sub = SupabaseService.streamMyApplicantNotifications().listen(
+      (rows) {
+        if (mounted) setState(() { _notifs = rows; _loading = false; });
+      },
+      onError: (_) {
+        if (mounted) setState(() => _loading = false);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filtered {
+    if (_typeFilter == null) return _notifs;
+    return _notifs.where((n) => n['type'] == _typeFilter).toList();
+  }
+
+  Future<void> _markRead(String id) async {
+    await SupabaseService.markNotificationRead(id);
+  }
+
+  Future<void> _dismiss(String id) async {
+    await SupabaseService.dismissNotification(id);
+  }
+
+  Future<void> _clearAll() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Clear all notifications?',
+          style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+        content: Text('This action cannot be undone.',
+          style: GoogleFonts.dmSans(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _kRed, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear All')),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      for (final n in _notifs) {
+        await SupabaseService.dismissNotification(n['id'] as String);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Alerts'),
+        title: Text('Notifications',
+          style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.w700)),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: _kBorder)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () => _showClearDialog(),
-            tooltip: 'Clear all alerts',
-          ),
+            icon: const Icon(Icons.delete_outline_rounded),
+            onPressed: _clearAll,
+            tooltip: 'Clear all'),
         ],
       ),
       body: Column(
         children: [
           _buildFilterChips(),
           Expanded(
-            child: _buildAlertsList(),
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: _kRed))
+                : _buildList(),
           ),
         ],
       ),
@@ -45,212 +145,179 @@ class _AlertsScreenState extends State<AlertsScreen> {
   }
 
   Widget _buildFilterChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(8),
-      child: Row(
-        children: [
-          FilterChip(
-            label: const Text('All'),
-            selected: _selectedFilter == null,
-            onSelected: (selected) {
-              setState(() => _selectedFilter = null);
-            },
-          ),
-          const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('Deadlines'),
-            selected: _selectedFilter == AlertType.deadline,
-            onSelected: (selected) {
-              setState(() => _selectedFilter = AlertType.deadline);
-            },
-          ),
-          const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('Grades'),
-            selected: _selectedFilter == AlertType.gradePosted,
-            onSelected: (selected) {
-              setState(() => _selectedFilter = AlertType.gradePosted);
-            },
-          ),
-          const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('Announcements'),
-            selected: _selectedFilter == AlertType.announcement,
-            onSelected: (selected) {
-              setState(() => _selectedFilter = AlertType.announcement);
-            },
-          ),
-        ],
+    final chips = [
+      (null,              'All'),
+      ('status_update',   'Status Updates'),
+      ('announcement',    'Announcements'),
+    ];
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: chips.map((c) {
+            final selected = _typeFilter == c.$1;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(c.$2,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: selected ? Colors.white : _kDark)),
+                selected: selected,
+                onSelected: (_) => setState(() => _typeFilter = c.$1),
+                selectedColor: _kRed,
+                backgroundColor: Colors.white,
+                side: BorderSide(color: selected ? _kRed : _kBorder),
+                showCheckmark: false,
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 
-  Widget _buildAlertsList() {
-    List<Alert> alerts = _selectedFilter == null
-        ? _notificationService.getAlerts()
-        : _notificationService.getAlertsByType(_selectedFilter!);
+  Widget _buildList() {
+    final items = _filtered;
 
-    if (alerts.isEmpty) {
+    if (items.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.notifications_off, size: 64, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            Text(
-              'No alerts',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 72, height: 72,
+                decoration: BoxDecoration(
+                  color: _kRedSoft,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _kRedMid, width: 1.5)),
+                child: const Icon(Icons.notifications_none_rounded, size: 32, color: _kMuted),
+              ),
+              const SizedBox(height: 16),
+              Text('No notifications yet',
+                style: GoogleFonts.dmSans(
+                  fontSize: 17, fontWeight: FontWeight.w700, color: _kDark)),
+              const SizedBox(height: 6),
+              Text(
+                'You\'ll receive updates here when your application status changes or when the admissions office sends an announcement.',
+                style: GoogleFonts.dmSans(fontSize: 13, color: _kMuted, height: 1.5),
+                textAlign: TextAlign.center),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      itemCount: alerts.length,
-      itemBuilder: (context, index) {
-        final alert = alerts[index];
-        return _buildAlertTile(alert);
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, i) {
+        final n = items[i];
+        return _NotifCard(
+          notif: n,
+          onTap: () => _markRead(n['id'] as String),
+          onDismiss: () => _dismiss(n['id'] as String),
+        );
       },
     );
   }
+}
 
-  Widget _buildAlertTile(Alert alert) {
-    final icon = _getAlertIcon(alert.type);
-    final color = _getAlertColor(alert.type);
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.2),
-          child: Icon(icon, color: color),
-        ),
-        title: Text(
-          alert.title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: alert.isRead ? FontWeight.normal : FontWeight.bold,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(alert.message, maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Text(
-              DateFormat('MMM d, yyyy HH:mm').format(alert.createdAt),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton(
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              child: const Text('Mark as read'),
-              onTap: () => _notificationService.markAsRead(alert.id),
-            ),
-            PopupMenuItem(
-              child: const Text('Delete'),
-              onTap: () => _notificationService.deleteAlert(alert.id),
-            ),
-          ],
-        ),
-        onTap: () => _showAlertDetail(alert),
-      ),
-    );
-  }
-
-  void _showAlertDetail(Alert alert) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(alert.title),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(alert.message),
-              const SizedBox(height: 16),
-              Text(
-                DateFormat('EEEE, MMMM d, yyyy HH:mm')
-                    .format(alert.createdAt),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (alert.dueDate != null) ...[
-                const SizedBox(height: 16),
-                Text('Due: ${DateFormat('MMMM d, yyyy').format(alert.dueDate!)}'),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _notificationService.deleteAlert(alert.id);
-              Navigator.pop(context);
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showClearDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear all alerts?'),
-        content: const Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _notificationService.clearAllAlerts();
-              Navigator.pop(context);
-              setState(() {});
-            },
-            child: const Text('Clear'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getAlertIcon(AlertType type) {
-    switch (type) {
-      case AlertType.deadline:
-        return Icons.schedule;
-      case AlertType.gradePosted:
-        return Icons.assignment_turned_in;
-      case AlertType.announcement:
-        return Icons.notifications;
-    }
-  }
-
-  Color _getAlertColor(AlertType type) {
-    switch (type) {
-      case AlertType.deadline:
-        return Colors.orange;
-      case AlertType.gradePosted:
-        return Colors.green;
-      case AlertType.announcement:
-        return Colors.blue;
-    }
-  }
+// ── _NotifCard ────────────────────────────────────────────────────────────────
+class _NotifCard extends StatelessWidget {
+  final Map<String, dynamic> notif;
+  final VoidCallback onTap;
+  final VoidCallback onDismiss;
+  const _NotifCard({required this.notif, required this.onTap, required this.onDismiss});
 
   @override
-  void dispose() {
-    super.dispose();
+  Widget build(BuildContext context) {
+    final isRead = notif['is_read'] == true;
+    final type = notif['type'] as String? ?? '';
+    final title = notif['title'] as String? ?? '';
+    final body = notif['body'] as String? ?? (notif['message'] as String? ?? '');
+    final timeStr = _timeAgo(notif['created_at'] as String?);
+    final (icon, iconColor) = _iconForType(type);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isRead ? _kBorder : _kRed.withValues(alpha: 0.3),
+            width: isRead ? 1 : 1.5),
+          boxShadow: [BoxShadow(
+            color: _kRed.withValues(alpha: isRead ? 0.03 : 0.07),
+            blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // left accent bar for unread
+          Container(
+            width: 4,
+            decoration: BoxDecoration(
+              color: isRead ? Colors.transparent : _kRed,
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(14))),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: iconColor.withValues(alpha: 0.2))),
+                  child: Icon(icon, size: 18, color: iconColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text(title,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
+                        color: _kDark))),
+                    if (!isRead)
+                      Container(
+                        width: 8, height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle, color: _kRed)),
+                  ]),
+                  if (body.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(body,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12, color: _kMuted, height: 1.45),
+                      maxLines: 3, overflow: TextOverflow.ellipsis),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Text(timeStr, style: GoogleFonts.dmSans(
+                      fontSize: 11, color: _kMuted.withValues(alpha: 0.7))),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: onDismiss,
+                      child: Text('Dismiss',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11, color: _kMuted,
+                          decoration: TextDecoration.underline)),
+                    ),
+                  ]),
+                ])),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 }

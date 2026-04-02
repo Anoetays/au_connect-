@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 enum MessageType { text, file, document }
 enum UserRole { student, admin }
@@ -127,8 +127,6 @@ class MessagingService {
   static const String _baseUrl = 'https://your-api.com';
   static final MessagingService _instance = MessagingService._internal();
 
-  late SharedPreferences _prefs;
-
   final Map<String, Conversation> _conversations = {};
   final Map<String, StreamController<Message>> _messageStreamControllers = {};
   final StreamController<Conversation> _conversationUpdates =
@@ -141,7 +139,7 @@ class MessagingService {
   }
 
   Future<void> initialize() async {
-    _prefs = await SharedPreferences.getInstance();
+    // initialization placeholder
   }
 
   /// Send a text message
@@ -178,7 +176,7 @@ class MessagingService {
         return true;
       }
     } catch (e) {
-      print('Error sending message: $e');
+      debugPrint('Error sending message: $e');
     }
     return false;
   }
@@ -223,7 +221,7 @@ class MessagingService {
         }
       }
     } catch (e) {
-      print('Error sending file message: $e');
+      debugPrint('Error sending file message: $e');
     }
     return false;
   }
@@ -245,7 +243,7 @@ class MessagingService {
         return responseData['file_url'];
       }
     } catch (e) {
-      print('Error uploading file: $e');
+      debugPrint('Error uploading file: $e');
     }
     return null;
   }
@@ -265,7 +263,7 @@ class MessagingService {
         return data;
       }
     } catch (e) {
-      print('Error fetching conversation: $e');
+      debugPrint('Error fetching conversation: $e');
     }
     return null;
   }
@@ -288,7 +286,7 @@ class MessagingService {
         return conversations;
       }
     } catch (e) {
-      print('Error fetching conversations: $e');
+      debugPrint('Error fetching conversations: $e');
     }
     return [];
   }
@@ -341,7 +339,7 @@ class MessagingService {
       ).timeout(const Duration(seconds: 10));
       return response.statusCode == 200;
     } catch (e) {
-      print('Error marking message as read: $e');
+      debugPrint('Error marking message as read: $e');
     }
     return false;
   }
@@ -355,7 +353,7 @@ class MessagingService {
       ).timeout(const Duration(seconds: 10));
       return response.statusCode == 200;
     } catch (e) {
-      print('Error marking conversation as read: $e');
+      debugPrint('Error marking conversation as read: $e');
     }
     return false;
   }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/anthropic_service.dart';
 import 'package:au_connect/services/gemini_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Full-featured AI chatbot screen powered by Google Gemini.
 /// Accepts a [systemPrompt] so it can be reused across applicant types, students, etc.
@@ -13,7 +13,7 @@ class ChatbotDashboardScreen extends StatefulWidget {
   const ChatbotDashboardScreen({
     super.key,
     this.systemPrompt = AUSystemPrompts.applicant,
-    this.title = 'Campus Assistant',
+    this.title = 'Admissions Assistant',
   });
 
   @override
@@ -32,7 +32,37 @@ class _ChatbotDashboardScreenState extends State<ChatbotDashboardScreen> {
   bool _isTyping = false;
   late final AIChatService _aiService;
 
-  static const _languages = ['English', 'Français', 'Português', 'Kiswahili'];
+  static const _languages = [
+    ('🇬🇧', 'English'),
+    ('🇫🇷', 'Français'),
+    ('🇵🇹', 'Português'),
+    ('🇹🇿', 'Kiswahili'),
+  ];
+
+  static const _quickActions = [
+    ('✅', 'Track Application',    'Check your status',   'How do I track my application?'),
+    ('📄', 'Required Documents',   'See the full list',   'What documents do I need to apply?'),
+    ('🎓', 'Available Programmes', 'Browse faculties',    'What programmes does Africa University offer?'),
+    ('💳', 'Application Fee',      'Payment options',     'How much is the application fee and how do I pay?'),
+  ];
+
+  static const _suggestions = [
+    'What are the entry requirements for undergraduate programmes?',
+    'When does the next intake start?',
+    'Can I apply as an international student?',
+    'How long does the admissions process take?',
+  ];
+
+  // ── color tokens ────────────────────────────────────────────────────────────
+  static const _kCrimson  = AppTheme.primaryCrimson;
+  static const _kCrimsonD = AppTheme.primaryDark;
+  static const _kParch    = AppTheme.background;
+  static const _kSurf     = Colors.white;
+  static const _kInk      = AppTheme.textPrimary;
+  static const _kSub      = AppTheme.textSecondary;
+  static const _kMuted    = AppTheme.textMuted;
+  static const _kBorder   = AppTheme.border;
+  static const _kRedBg    = AppTheme.primaryLight;
 
   @override
   void initState() {
@@ -41,7 +71,7 @@ class _ChatbotDashboardScreenState extends State<ChatbotDashboardScreen> {
     _messages.add({
       'role': 'bot',
       'text':
-          'Hello! I\'m your Africa University assistant. How can I help you today?\n\nI can assist with application requirements, documents, programmes, fees, and more.',
+          'Hello! I\'m your Africa University admissions assistant. How can I help you today?\n\nI can assist with application requirements, documents, programmes, fees, and more.',
     });
   }
 
@@ -85,240 +115,177 @@ class _ChatbotDashboardScreenState extends State<ChatbotDashboardScreen> {
     _scrollToBottom();
   }
 
-  void _sendQuickMessage(String message) => _sendMessage(override: message);
-
-  /// Switches the active language and silently instructs Gemini to respond in it.
   Future<void> _switchLanguage(String lang) async {
     if (_selectedLanguage == lang) return;
     setState(() => _selectedLanguage = lang);
-    // Hidden instruction — not shown in the UI
     await _aiService.sendMessage('Please respond in $lang from now on.');
   }
 
+  // ── build ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor:
-          isDark ? AppTheme.backgroundDark : AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: AppTheme.surface,
-        elevation: 0,
-        leadingWidth: 200,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16.0),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: AppTheme.primary.withValues(alpha: 0.12),
-                child: const Icon(Symbols.smart_toy,
-                    color: AppTheme.primary, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  'Africa University',
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.pushNamed(context, '/admin_dashboard'),
-            icon: const Icon(Symbols.notifications,
-                color: AppTheme.textMuted),
-            tooltip: 'Notifications',
-          ),
-          const SizedBox(width: 8),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: AppTheme.border, height: 1.0),
-        ),
-      ),
+      backgroundColor: _kParch,
       body: Column(
         children: [
+          _buildTopBar(),
           Expanded(
             child: SingleChildScrollView(
               controller: _scrollController,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
+                  constraints: const BoxConstraints(maxWidth: 640),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildHeader(isDark),
-                      const SizedBox(height: 32),
-                      _buildLanguageSelector(),
-                      const SizedBox(height: 40),
-                      _buildChatHistory(isDark),
+                      _buildHeader(),
+                      const SizedBox(height: 22),
+                      _buildLanguageTabs(),
+                      const SizedBox(height: 22),
+                      _buildMessages(),
                       if (_isTyping) ...[
-                        const SizedBox(height: 16),
-                        _buildTypingIndicator(isDark),
+                        const SizedBox(height: 14),
+                        _buildTypingBubble(),
                       ],
-                      // Quick-action cards shown only before first user message
+                      // Quick actions + suggestions only before first user message
                       if (_messages.length == 1) ...[
-                        const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 48.0),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  _buildActionCard(
-                                    Symbols.check_circle,
-                                    'Track Application',
-                                    isDark,
-                                    () => _sendQuickMessage(
-                                        'How do I track my application status?'),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  _buildActionCard(
-                                    Symbols.description,
-                                    'Required Documents',
-                                    isDark,
-                                    () => _sendQuickMessage(
-                                        'What documents do I need?'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  _buildActionCard(
-                                    Symbols.school,
-                                    'Available Programmes',
-                                    isDark,
-                                    () => _sendQuickMessage(
-                                        'What programmes are available?'),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  _buildActionCard(
-                                    Symbols.payments,
-                                    'Application Fee',
-                                    isDark,
-                                    () => _sendQuickMessage(
-                                        'How do I pay the application fee?'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(height: 18),
+                        _buildSectionLabel('Quick Actions'),
+                        _buildQuickGrid(),
+                        const SizedBox(height: 20),
+                        _buildSectionLabel('People Also Ask'),
+                        _buildSuggestionChips(),
                       ],
-                      const SizedBox(height: 80),
+                      const SizedBox(height: 100),
                     ],
                   ),
                 ),
               ),
             ),
           ),
-          _buildInputBar(isDark),
+          _buildInputBar(),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(bool isDark) {
+  // ── Top bar ───────────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
+    return Container(
+      height: 52,
+      decoration: const BoxDecoration(
+        color: _kSurf,
+        border: Border(bottom: BorderSide(color: _kBorder)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.maybePop(context),
+                child: Row(
+                  children: [
+                    const Icon(Icons.chevron_left_rounded,
+                        size: 20, color: _kCrimson),
+                    Text('Back',
+                        style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _kCrimson)),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Text('AI Assistant',
+                  style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _kInk)),
+              const Spacer(),
+              const Text('🔔', style: TextStyle(fontSize: 18)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Header ────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
     return Column(
       children: [
         Container(
           width: 64,
           height: 64,
-          decoration: BoxDecoration(
-            color: AppTheme.primary,
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [_kCrimson, _kCrimsonD],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.primary.withValues(alpha: 0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: Color(0x4DB71C1C),
+                blurRadius: 20,
+                offset: Offset(0, 6),
               ),
             ],
           ),
-          child: const Icon(Symbols.smart_toy, color: Colors.white, size: 32),
+          child: const Center(
+            child: Text('🎓', style: TextStyle(fontSize: 28)),
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        Text('Admissions Assistant',
+            style: GoogleFonts.dmSans(
+                fontSize: 20, fontWeight: FontWeight.w700, color: _kInk)),
+        const SizedBox(height: 4),
         Text(
-          widget.title,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: isDark ? AppTheme.textLight : AppTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: Text(
-            'Powered by Gemini AI — ask me anything about Africa University.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark ? Colors.grey[400] : AppTheme.textMuted,
-              height: 1.5,
-            ),
-          ),
+          'Powered by Gemini AI — ask me anything\nabout Africa University.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.dmSans(
+              fontSize: 12, color: _kSub, height: 1.5),
         ),
       ],
     );
   }
 
-  Widget _buildLanguageSelector() {
+  // ── Language tabs ─────────────────────────────────────────────────────────
+
+  Widget _buildLanguageTabs() {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       alignment: WrapAlignment.center,
       children: _languages.map((lang) {
-        final isSelected = _selectedLanguage == lang;
-        return InkWell(
-          onTap: () => _switchLanguage(lang),
-          borderRadius: BorderRadius.circular(20),
+        final isActive = _selectedLanguage == lang.$2;
+        return GestureDetector(
+          onTap: () => _switchLanguage(lang.$2),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
             decoration: BoxDecoration(
-              color: isSelected ? AppTheme.primary : Colors.transparent,
+              color: isActive ? _kCrimson : _kSurf,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isSelected
-                    ? AppTheme.primary
-                    : AppTheme.border,
+                color: isActive ? _kCrimson : _kBorder,
+                width: 1.5,
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isSelected) ...[
-                  const Icon(Symbols.translate,
-                      color: Colors.white, size: 13),
-                  const SizedBox(width: 5),
-                ],
-                Text(
-                  lang,
-                  style: TextStyle(
-                    color: isSelected
-                        ? Colors.white
-                        : AppTheme.textSecondary,
-                    fontSize: 13,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.w500,
-                  ),
-                ),
-              ],
+            child: Text(
+              '${lang.$1} ${lang.$2}',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isActive ? Colors.white : _kSub,
+              ),
             ),
           ),
         );
@@ -326,64 +293,50 @@ class _ChatbotDashboardScreenState extends State<ChatbotDashboardScreen> {
     );
   }
 
-  Widget _buildChatHistory(bool isDark) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _messages.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final msg = _messages[index];
-        return msg['role'] == 'bot'
-            ? _buildBotMessage(msg['text']!, isDark)
-            : _buildUserMessage(msg['text']!, isDark);
-      },
+  // ── Messages ──────────────────────────────────────────────────────────────
+
+  Widget _buildMessages() {
+    return Column(
+      children: _messages.map((msg) {
+        final isBot = msg['role'] == 'bot';
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: isBot ? _buildBotBubble(msg['text']!) : _buildUserBubble(msg['text']!),
+        );
+      }).toList(),
     );
   }
 
-  Widget _buildBotMessage(String text, bool isDark) {
+  Widget _buildBotBubble(String text) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
+          width: 34,
+          height: 34,
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.4)),
+            color: _kRedBg,
           ),
-          child:
-              const Icon(Symbols.smart_toy, color: AppTheme.primary, size: 17),
+          child: const Center(child: Text('🎓', style: TextStyle(fontSize: 16))),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Flexible(
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
             decoration: BoxDecoration(
-              color: AppTheme.surface,
+              color: _kSurf,
               borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(16),
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
+                topLeft: Radius.circular(14),
+                topRight: Radius.circular(14),
+                bottomRight: Radius.circular(14),
+                bottomLeft: Radius.circular(4),
               ),
-              border: Border.all(color: AppTheme.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              border: Border.all(color: _kBorder),
             ),
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
-                height: 1.6,
-              ),
-            ),
+            child: Text(text,
+                style: GoogleFonts.dmSans(
+                    fontSize: 13, color: _kInk, height: 1.55)),
           ),
         ),
         const SizedBox(width: 48),
@@ -391,7 +344,7 @@ class _ChatbotDashboardScreenState extends State<ChatbotDashboardScreen> {
     );
   }
 
-  Widget _buildUserMessage(String text, bool isDark) {
+  Widget _buildUserBubble(String text) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -399,191 +352,217 @@ class _ChatbotDashboardScreenState extends State<ChatbotDashboardScreen> {
         const SizedBox(width: 48),
         Flexible(
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
             decoration: const BoxDecoration(
-              color: AppTheme.primary,
+              color: _kCrimson,
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-                bottomLeft: Radius.circular(16),
+                topLeft: Radius.circular(14),
+                topRight: Radius.circular(14),
+                bottomLeft: Radius.circular(14),
+                bottomRight: Radius.circular(4),
               ),
             ),
-            child: Text(
-              text,
-              style: const TextStyle(
-                  fontSize: 14, color: Colors.white, height: 1.6),
-            ),
+            child: Text(text,
+                style: GoogleFonts.dmSans(
+                    fontSize: 13, color: Colors.white, height: 1.55)),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppTheme.secondary.withValues(alpha: 0.7),
+          width: 34,
+          height: 34,
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
+            color: _kCrimson,
           ),
-          child:
-              const Icon(Symbols.person, color: Colors.white, size: 18, fill: 1),
+          child: Center(
+            child: Text('A',
+                style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildTypingIndicator(bool isDark) {
+  // ── Typing indicator ──────────────────────────────────────────────────────
+
+  Widget _buildTypingBubble() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
+          width: 34,
+          height: 34,
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            border:
-                Border.all(color: AppTheme.primary.withValues(alpha: 0.4)),
+            color: _kRedBg,
           ),
-          child: const Icon(Symbols.smart_toy,
-              color: AppTheme.primary, size: 17),
+          child: const Center(child: Text('🎓', style: TextStyle(fontSize: 16))),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
           decoration: BoxDecoration(
-            color: AppTheme.surface,
+            color: _kSurf,
             borderRadius: const BorderRadius.only(
-              topRight: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(16),
+              topLeft: Radius.circular(14),
+              topRight: Radius.circular(14),
+              bottomRight: Radius.circular(14),
+              bottomLeft: Radius.circular(4),
             ),
-            border: Border.all(color: AppTheme.border),
+            border: Border.all(color: _kBorder),
           ),
-          child: _AnimatedDots(),
+          child: const _AnimatedDots(),
         ),
       ],
     );
   }
 
-  Widget _buildActionCard(
-      IconData icon, String title, bool isDark, VoidCallback onTap) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: AppTheme.primaryLight,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: AppTheme.primary, size: 18),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
+  // ── Section label ─────────────────────────────────────────────────────────
+
+  Widget _buildSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.dmSans(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.4,
+            color: _kSub),
       ),
     );
   }
 
-  Widget _buildInputBar(bool isDark) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-      decoration: BoxDecoration(
-        color: isDark
-            ? AppTheme.textPrimary
-            : AppTheme.background,
-        border: Border(
-          top: BorderSide(
-            color: isDark
-                ? AppTheme.textPrimary
-                : AppTheme.border,
+  // ── Quick action grid ─────────────────────────────────────────────────────
+
+  Widget _buildQuickGrid() {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 2.4,
+      children: _quickActions.map((q) {
+        return _QuickCard(
+          emoji: q.$1,
+          label: q.$2,
+          sub: q.$3,
+          onTap: () => _sendMessage(override: q.$4),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── Suggestion chips ──────────────────────────────────────────────────────
+
+  Widget _buildSuggestionChips() {
+    return Column(
+      children: _suggestions.map((s) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: GestureDetector(
+            onTap: () => _sendMessage(override: s),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: _kSurf,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _kBorder),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(s,
+                        style: GoogleFonts.dmSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: _kInk)),
+                  ),
+                  Text('›',
+                      style: TextStyle(
+                          fontSize: 16, color: _kMuted,
+                          fontWeight: FontWeight.w400)),
+                ],
+              ),
+            ),
           ),
-        ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── Input bar ─────────────────────────────────────────────────────────────
+
+  Widget _buildInputBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: _kParch,
+        border: Border(top: BorderSide(color: _kBorder)),
       ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: const BoxConstraints(maxWidth: 640),
           child: Row(
             children: [
               Expanded(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? AppTheme.textPrimary
-                        : AppTheme.surface,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: isDark
-                          ? AppTheme.textSecondary
-                          : AppTheme.border,
-                    ),
+                    color: _kSurf,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _kBorder, width: 1.5),
                   ),
                   child: TextField(
                     controller: _messageController,
                     onSubmitted: (_) => _sendMessage(),
                     textInputAction: TextInputAction.send,
-                    maxLines: null,
+                    style: GoogleFonts.dmSans(fontSize: 13, color: _kInk),
                     decoration: InputDecoration(
-                      hintText: 'Ask me anything about Africa University...',
-                      hintStyle: TextStyle(
-                          color: AppTheme.textMuted, fontSize: 14),
+                      hintText: 'Ask me anything about Africa University…',
+                      hintStyle:
+                          GoogleFonts.dmSans(fontSize: 13, color: _kMuted),
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 13),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: _isTyping
-                      ? AppTheme.primary.withValues(alpha: 0.5)
-                      : AppTheme.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: Icon(
-                    _isTyping ? Symbols.hourglass_top : Symbols.send,
-                    color: Colors.white,
-                    size: 18,
-                    fill: 1,
+              GestureDetector(
+                onTap: _isTyping ? null : _sendMessage,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: _isTyping
+                        ? _kCrimson.withValues(alpha: 0.5)
+                        : _kCrimson,
+                    shape: BoxShape.circle,
+                    boxShadow: _isTyping
+                        ? []
+                        : const [
+                            BoxShadow(
+                              color: Color(0x59B71C1C),
+                              blurRadius: 12,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
                   ),
-                  onPressed: _isTyping ? null : _sendMessage,
+                  child: const Center(
+                    child: Text('›',
+                        style: TextStyle(
+                            fontSize: 22,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w400,
+                            height: 1)),
+                  ),
                 ),
               ),
             ],
@@ -594,50 +573,147 @@ class _ChatbotDashboardScreenState extends State<ChatbotDashboardScreen> {
   }
 }
 
-/// Animated three-dot typing indicator.
+// ── Quick action card ─────────────────────────────────────────────────────────
+
+class _QuickCard extends StatefulWidget {
+  final String emoji;
+  final String label;
+  final String sub;
+  final VoidCallback onTap;
+  const _QuickCard(
+      {required this.emoji,
+      required this.label,
+      required this.sub,
+      required this.onTap});
+
+  @override
+  State<_QuickCard> createState() => _QuickCardState();
+}
+
+class _QuickCardState extends State<_QuickCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _hovered
+                  ? AppTheme.primaryLight
+                  : AppTheme.border,
+              width: 1.5,
+            ),
+            boxShadow: _hovered
+                ? [
+                    BoxShadow(
+                      color: AppTheme.primaryCrimson.withValues(alpha: 0.09),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    )
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryLight,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Center(
+                  child: Text(widget.emoji,
+                      style: const TextStyle(fontSize: 17)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(widget.label,
+                        style: GoogleFonts.dmSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    Text(widget.sub,
+                        style: GoogleFonts.dmSans(
+                            fontSize: 10,
+                            color: AppTheme.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Animated typing dots ──────────────────────────────────────────────────────
+
 class _AnimatedDots extends StatefulWidget {
+  const _AnimatedDots();
+
   @override
   State<_AnimatedDots> createState() => _AnimatedDotsState();
 }
 
 class _AnimatedDotsState extends State<_AnimatedDots>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  late AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1200),
     )..repeat();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _controller,
+      animation: _ctrl,
       builder: (_, __) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(3, (i) {
-            final delay = i / 3;
-            final phase = (_controller.value - delay).clamp(0.0, 1.0);
-            final opacity = (0.3 + 0.7 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2)).clamp(0.3, 1.0);
+            final delay = i * 0.2;
+            final phase = ((_ctrl.value - delay) % 1.0).clamp(0.0, 1.0);
+            final opacity = (0.3 + 0.7 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2))
+                .clamp(0.3, 1.0);
             return Padding(
               padding: EdgeInsets.only(right: i < 2 ? 4.0 : 0),
               child: Container(
-                width: 6,
-                height: 6,
+                width: 7,
+                height: 7,
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: opacity),
                   shape: BoxShape.circle,
+                  color: AppTheme.textMuted.withValues(alpha: opacity),
                 ),
               ),
             );

@@ -647,8 +647,8 @@ class _OnboardingBodyState extends State<_OnboardingBody>
   // ── Hero Banner ───────────────────────────────────────────────────────────
 
   Widget _buildHeroBanner(AppLocalizations l10n) {
-    final steps = _completedSteps;
-    final pct = ((_appState.progress) * 100).round();
+    final hasApplication = _application != null;
+    final pct = hasApplication ? 100 : ((_appState.progress) * 100).round();
     final hasProfile = (_profile?['full_name'] as String?) != null;
 
     return AnimatedBuilder(
@@ -752,13 +752,13 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                         ),
                         const SizedBox(height: 22),
                         GestureDetector(
-                          onTap: steps == 5
+                          onTap: hasApplication
                               ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ApplicationProgressScreen()))
                               : () => Navigator.push(context, MaterialPageRoute(
                                       builder: (_) => hasProfile
                                           ? PersonalInformationScreen(
-                                              nextRoute: (_) => DocumentUploadScreen(
-                                                nextRoute: (_) => SelectProgramScreen(
+                                              nextRoute: (_) => SelectProgramScreen(
+                                                nextRoute: (_) => DocumentUploadScreen(
                                                   nextRoute: (_) => const SubmitApplicationScreen(),
                                                 ),
                                               ),
@@ -776,7 +776,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  steps == 5 ? 'Track Application' : 'Get Started',
+                                  hasApplication ? 'Check Application Progress' : 'Get Started',
                                   style: GoogleFonts.dmSans(
                                     color: Colors.white,
                                     fontSize: 13,
@@ -1281,8 +1281,8 @@ class _OnboardingBodyState extends State<_OnboardingBody>
           context,
           MaterialPageRoute(
             builder: (_) => PersonalInformationScreen(
-              nextRoute: (_) => DocumentUploadScreen(
-                nextRoute: (_) => SelectProgramScreen(
+              nextRoute: (_) => SelectProgramScreen(
+                nextRoute: (_) => DocumentUploadScreen(
                   nextRoute: (_) => const SubmitApplicationScreen(),
                 ),
               ),

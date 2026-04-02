@@ -127,7 +127,6 @@ class _ApplicantTypeSelectionScreenState
           CustomScrollView(
             slivers: [
               SliverToBoxAdapter(child: _buildHero(context)),
-              SliverToBoxAdapter(child: _buildWave()),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 48),
                 sliver: SliverList(
@@ -182,66 +181,7 @@ class _ApplicantTypeSelectionScreenState
           stops: [0.0, 0.55, 1.0],
         ),
       ),
-      child: Stack(
-        children: [
-          // Mesh overlay top-right
-          Positioned(
-            top: -80, right: -80,
-            child: Container(
-              width: 340, height: 340,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [
-                  Colors.white.withValues(alpha: 0.07),
-                  Colors.transparent,
-                ], stops: const [0.0, 0.65]),
-              ),
-            ),
-          ),
-          // Mesh overlay bottom
-          Positioned(
-            bottom: -60, left: 0, right: 0,
-            child: Center(
-              child: Container(
-                width: 260, height: 260,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    Colors.white.withValues(alpha: 0.05),
-                    Colors.transparent,
-                  ], stops: const [0.0, 0.65]),
-                ),
-              ),
-            ),
-          ),
-          // Diagonal stripe
-          Positioned.fill(
-            child: ClipRect(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: FractionallySizedBox(
-                  widthFactor: 0.35,
-                  child: Transform(
-                    transform: Matrix4.skewX(-0.14),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.white.withValues(alpha: 0.04),
-                            Colors.transparent,
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Content
-          SafeArea(
+      child: SafeArea(
             bottom: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
@@ -336,45 +276,9 @@ class _ApplicantTypeSelectionScreenState
               ),
             ),
           ),
-        ],
-      ),
     );
   }
 
-  Widget _buildWave() {
-    return SizedBox(
-      height: 32,
-      child: CustomPaint(
-        painter: _WavePainter(),
-        size: const Size(double.infinity, 32),
-      ),
-    );
-  }
-}
-
-// ── Wave painter ─────────────────────────────────────────────────────────────
-
-class _WavePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppTheme.primary.withValues(alpha: 0.07)
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    path.moveTo(0, size.height);
-    path.lineTo(0, size.height * 0.55);
-    path.quadraticBezierTo(
-        size.width * 0.25, size.height * 0.0, size.width * 0.5, size.height * 0.55);
-    path.quadraticBezierTo(
-        size.width * 0.75, size.height, size.width, size.height * 0.55);
-    path.lineTo(size.width, size.height);
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Hero pill chip ────────────────────────────────────────────────────────────
@@ -502,67 +406,28 @@ class _PathwayCardState extends State<_PathwayCard> {
               borderRadius: BorderRadius.circular(18),
               child: Stack(
                 children: [
-                  // Red wash on hover
-                  if (_hovered)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.primary.withValues(alpha: 0.025),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.5],
-                          ),
-                        ),
-                      ),
-                    ),
-                  // Left stripe
-                  Positioned(
-                    left: 0, top: 0, bottom: 0,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeOutCubic,
-                      width: _hovered ? 4 : 0,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppTheme.primary, AppTheme.primaryDark],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                    ),
-                  ),
                   // Card content
                   Padding(
                     padding: const EdgeInsets.fromLTRB(18, 18, 16, 18),
                     child: Row(
                       children: [
                         // Icon
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 280),
-                          transform: _hovered
-                              ? (Matrix4.identity()
-                                ..rotateZ(-0.08)
-                                ..scaleByDouble(1.08, 1.08, 1.0, 1.0))
-                              : Matrix4.identity(),
-                          child: Container(
-                            width: 50, height: 50,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  p.iconClass.bgStart,
-                                  p.iconClass.bgEnd,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(15),
-                              border: Border.all(color: p.iconClass.border),
+                        Container(
+                          width: 50, height: 50,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                p.iconClass.bgStart,
+                                p.iconClass.bgEnd,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            child: Icon(p.icon,
-                                size: 22, color: p.iconClass.iconColor),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: p.iconClass.border),
                           ),
+                          child: Icon(p.icon,
+                              size: 22, color: p.iconClass.iconColor),
                         ),
                         const SizedBox(width: 14),
                         // Text

@@ -187,49 +187,56 @@ class _LangCard extends StatefulWidget {
 }
 
 class _LangCardState extends State<_LangCard> {
-  bool _hovered = false;
-
-  static const _crimson = Color(0xFFB91C1C);
-
   @override
   Widget build(BuildContext context) {
-    final active = widget.selected || _hovered;
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: active ? _crimson : Colors.white,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: widget.selected
-                  ? Colors.white
-                  : Colors.white.withValues(alpha: 0.4),
+                  ? Colors.white.withValues(alpha: 0.6)
+                  : Colors.white.withValues(alpha: 0.25),
               width: widget.selected ? 2.5 : 1.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: active ? 0.18 : 0.08),
-                blurRadius: active ? 20 : 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            boxShadow: widget.selected
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 0),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(widget.flag, style: const TextStyle(fontSize: 28)),
+              Text(widget.flag, style: const TextStyle(fontSize: 26)),
               const SizedBox(height: 6),
               Text(
                 widget.label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: active ? Colors.white : _crimson,
+                  color: Color(0xFF1A1A1A),
                   letterSpacing: 0.2,
                 ),
               ),

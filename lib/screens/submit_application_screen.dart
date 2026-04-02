@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/l10n/app_localizations.dart';
 import 'package:au_connect/theme/app_theme.dart';
+import 'package:au_connect/services/supabase_service.dart';
+import 'package:au_connect/services/application_state.dart';
+import 'onboarding_dashboard_screen.dart';
+import 'international_dashboard_screen.dart';
+import 'masters_dashboard_screen.dart';
+import 'admin_dashboard_screen.dart';
 
 // ─── color tokens ─────────────────────────────────────────────────────────────
 const _kCrimson      = AppTheme.primaryDark;
@@ -46,7 +52,61 @@ class SubmitApplicationScreen extends StatefulWidget {
 }
 
 class _SubmitApplicationScreenState extends State<SubmitApplicationScreen> {
-  bool _submitted = false;
+  bool _submitted  = false;
+  bool _submitting = false;
+  String _userType = 'local';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserType();
+  }
+
+  Future<void> _loadUserType() async {
+    try {
+      final profile = await SupabaseService.getProfile();
+      if (!mounted || profile == null) return;
+      final raw = (profile['applicant_type'] as String?
+              ?? profile['role']           as String?
+              ?? 'local').toLowerCase();
+      setState(() => _userType = raw);
+    } catch (_) {}
+  }
+
+  void _navigateToDashboard(BuildContext ctx) {
+    final Widget dest;
+    if (_userType.contains('international')) {
+      dest = const InternationalDashboardScreen();
+    } else if (_userType.contains('master') || _userType.contains('postgrad')) {
+      dest = const MastersDashboardScreen();
+    } else if (_userType == 'admin') {
+      dest = const AdminDashboardScreen();
+    } else {
+      dest = const OnboardingDashboardScreen();
+    }
+    Navigator.of(ctx).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => dest),
+      (route) => false,
+    );
+  }
+
+  Future<void> _handleSubmit() async {
+    if (_submitting || _submitted) return;
+    setState(() => _submitting = true);
+    try {
+      await SupabaseService.finalizeSubmission();
+      ApplicationState.instance.setApplicationSubmitted(true);
+      if (!mounted) return;
+      setState(() { _submitted = true; _submitting = false; });
+      _showSuccessDialog();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Submission failed: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,10 +223,8 @@ class _SubmitApplicationScreenState extends State<SubmitApplicationScreen> {
         // Submit banner
         _SubmitBanner(
           submitted: _submitted,
-          onSubmit: () {
-            setState(() => _submitted = true);
-            _showSuccessDialog();
-          },
+          submitting: _submitting,
+          onSubmit: _handleSubmit,
         ),
       ],
     );
@@ -213,8 +271,7 @@ class _SubmitApplicationScreenState extends State<SubmitApplicationScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(context)
-                      .popUntil((r) => r.isFirst),
+                  onPressed: () => _navigateToDashboard(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kCrimson,
                     foregroundColor: Colors.white,
@@ -1066,8 +1123,9 @@ class _DeclarationCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 class _SubmitBanner extends StatefulWidget {
   final bool submitted;
+  final bool submitting;
   final VoidCallback onSubmit;
-  const _SubmitBanner({required this.submitted, required this.onSubmit});
+  const _SubmitBanner({required this.submitted, required this.onSubmit, this.submitting = false});
 
   @override
   State<_SubmitBanner> createState() => _SubmitBannerState();
@@ -1135,7 +1193,7 @@ class _SubmitBannerState extends State<_SubmitBanner> {
       onEnter: (_) => setState(() => _hover = true),
       onExit:  (_) => setState(() => _hover = false),
       child: GestureDetector(
-        onTap: widget.submitted ? null : widget.onSubmit,
+        onTap: (widget.submitted || widget.submitting) ? null : widget.onSubmit,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           height: 50,
@@ -1164,14 +1222,20 @@ class _SubmitBannerState extends State<_SubmitBanner> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                widget.submitted ? 'Submitted ✓' : AppLocalizations.of(context)!.submitApplication,
-                style: GoogleFonts.dmSans(
-                  fontSize: 14, fontWeight: FontWeight.w500,
-                  letterSpacing: 0.04 * 14, color: Colors.white,
+              if (widget.submitting)
+                const SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              else
+                Text(
+                  widget.submitted ? 'Submitted ✓' : AppLocalizations.of(context)!.submitApplication,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14, fontWeight: FontWeight.w500,
+                    letterSpacing: 0.04 * 14, color: Colors.white,
+                  ),
                 ),
-              ),
-              if (!widget.submitted) ...[
+              if (!widget.submitted && !widget.submitting) ...[
                 const SizedBox(width: 9),
                 const Icon(Icons.send_rounded, size: 16, color: Colors.white),
               ],

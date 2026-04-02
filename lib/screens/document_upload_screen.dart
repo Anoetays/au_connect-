@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/services/application_state.dart';
+import 'select_program_screen.dart';
 
 // ─── color tokens ─────────────────────────────────────────────────────────────
 const _kCrimsonLight = AppTheme.primaryCrimson;
@@ -44,7 +45,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   final Map<String, String?> _verificationNotes = {};
   StreamSubscription<List<Map<String, dynamic>>>? _docSub;
 
-  bool _uploading = false;
+  bool _saving = false;
+  bool _saved = false;
 
   @override
   void initState() {
@@ -95,7 +97,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-      withData: false,
+      withData: true,
     );
     if (result == null || result.files.isEmpty) return;
     setState(() => _entries[index].file = result.files.first);
@@ -108,7 +110,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     return true;
   }
 
-  Future<void> _handleNext() async {
+  Future<void> _saveDocuments() async {
     if (_entries.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please add at least one document.')),
@@ -118,46 +120,29 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     if (!_validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text(
-                'Each document card needs a label and a selected file.')),
+            content: Text('Each document card needs a label and a selected file.')),
       );
       return;
     }
 
-    setState(() => _uploading = true);
-    try {
-      // Upload each document to Supabase storage / documents table
-      for (final e in _entries) {
-        final file = e.file!;
-        final label = e.labelCtrl.text.trim();
-        await SupabaseService.uploadDocument(
-          fileName: file.name,
-          documentType: label,
-          filePath: file.path ?? '',
-        );
-      }
-
-      // Mark documents step complete in shared state
-      ApplicationState.instance.setDocumentsUploaded(true);
-
-      if (!mounted) return;
-      setState(() => _uploading = false);
-
-      if (widget.nextRoute != null) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: widget.nextRoute!),
-        );
-      } else {
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _uploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: $e')),
+    setState(() => _saving = true);
+    for (final e in _entries) {
+      await SupabaseService.uploadDocument(
+        fileName: e.file!.name,
+        documentType: e.labelCtrl.text.trim(),
       );
     }
+    ApplicationState.instance.setDocumentsUploaded(true);
+    if (!mounted) return;
+    setState(() { _saving = false; _saved = true; });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Documents saved successfully.')),
+    );
+  }
+
+  void _goNext() {
+    final route = widget.nextRoute ?? (_) => const SelectProgramScreen();
+    Navigator.push(context, MaterialPageRoute(builder: route));
   }
 
   // ── build ──────────────────────────────────────────────────────────────────
@@ -275,32 +260,62 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
               const SizedBox(height: 32),
 
-              // Next button
+              // Save Documents button
               SizedBox(
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _uploading ? null : _handleNext,
+                  onPressed: _saving ? null : _saveDocuments,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _kCrimsonLight,
+                    backgroundColor: _saved ? _kGreen : _kCrimsonLight,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: _uploading
+                  child: _saving
                       ? const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white)))
-                      : Text(
-                          widget.nextRoute != null
-                              ? 'Save & Continue'
-                              : 'Save Documents',
-                          style: GoogleFonts.dmSans(
-                              fontWeight: FontWeight.w700, fontSize: 15),
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(_saved ? Icons.check_circle_outline : Icons.save_outlined, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              _saved ? 'Documents Saved' : 'Save Documents',
+                              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 15),
+                            ),
+                          ],
                         ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Next button → Select Programme
+              SizedBox(
+                height: 50,
+                child: OutlinedButton(
+                  onPressed: _goNext,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _kCrimsonLight,
+                    side: const BorderSide(color: _kCrimsonLight, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Next: Select Programme',
+                        style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 15),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward, size: 18),
+                    ],
+                  ),
                 ),
               ),
             ],

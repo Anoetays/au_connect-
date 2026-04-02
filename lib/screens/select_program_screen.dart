@@ -123,7 +123,7 @@ class _SelectProgramScreenState extends State<SelectProgramScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
-    for (final c in _subjectCtrls) c.dispose();
+    for (final c in _subjectCtrls) { c.dispose(); }
     _sub?.cancel();
     super.dispose();
   }
@@ -1389,7 +1389,7 @@ class _SubjectRow extends StatelessWidget {
           width: 80,
           height: 38,
           child: DropdownButtonFormField<String>(
-            value: _grades.contains(grade) ? grade : 'C',
+            initialValue: _grades.contains(grade) ? grade : 'C',
             isDense: true,
             decoration: InputDecoration(
               contentPadding:

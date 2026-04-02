@@ -64,10 +64,14 @@ class SupabaseService {
     required String faculty,
     required String nationality,
   }) async {
+    final uid = currentUserId;
+    if (uid == null) throw Exception('Not authenticated');
+
     // Count existing rows to derive the next sequential number.
     final existing = await _db.from('applications').select('id');
     final n = ((existing as List).length + 1).toString().padLeft(4, '0');
     final applicantId = 'AU-2025-$n';
+    final now = DateTime.now().toIso8601String();
 
     await _db.from('applications').insert({
       'applicant_id': applicantId,
@@ -78,9 +82,51 @@ class SupabaseService {
       'faculty': faculty,
       'nationality': nationality,
       'status': 'Pending',
+      'user_id': uid,
+      'submitted_at': now,
     });
 
     return applicantId;
+  }
+
+  /// Finalize the current user's application — creates one if it doesn't exist
+  /// yet, or promotes an existing draft to Pending.  Returns the applicant ID.
+  static Future<String> finalizeSubmission() async {
+    final uid = currentUserId;
+    if (uid == null) throw Exception('Not authenticated');
+
+    final profile = await getProfile();
+    final name        = profile?['full_name']         as String? ?? '';
+    final email       = profile?['email']             as String?
+                     ?? currentUser?.email             ?? '';
+    final nationality = profile?['country_of_origin'] as String? ?? '';
+    final type        = profile?['applicant_type']    as String? ?? 'Local';
+
+    // Check for an existing application row for this user
+    final existing = await getMyApplication();
+    final now = DateTime.now().toIso8601String();
+
+    if (existing != null) {
+      // Promote to Pending and stamp submitted_at
+      await _db.from('applications').update({
+        'status':       'Pending',
+        'submitted_at': now,
+        if (name.isNotEmpty)        'applicant_name': name,
+        if (email.isNotEmpty)       'email':          email,
+        if (nationality.isNotEmpty) 'nationality':    nationality,
+      }).eq('id', existing['id'] as String);
+      return existing['applicant_id'] as String? ?? '';
+    }
+
+    // No existing row — create a fresh application
+    return submitApplication(
+      applicantName: name,
+      email:         email,
+      type:          type,
+      programme:     '',
+      faculty:       '',
+      nationality:   nationality,
+    );
   }
 
   /// Update the programme and faculty on an existing application.
@@ -137,7 +183,8 @@ class SupabaseService {
     }
   }
 
-  /// Update the status (and optional notes) of an application.
+  /// Update the status (and optional notes) of an application,
+  /// then send a notification to the applicant.
   static Future<void> updateApplicationStatus(
     String applicationId,
     String status, {
@@ -146,6 +193,43 @@ class SupabaseService {
     final update = <String, dynamic>{'status': status};
     if (notes != null) update['notes'] = notes;
     await _db.from('applications').update(update).eq('id', applicationId);
+
+    // Notify the applicant
+    try {
+      final app = await _db
+          .from('applications')
+          .select('user_id, programme')
+          .eq('id', applicationId)
+          .maybeSingle();
+      final recipientId = app?['user_id'] as String?;
+      if (recipientId == null) return;
+
+      final programme = app?['programme'] as String? ?? 'your programme';
+      final String title;
+      final String body;
+      switch (status.toLowerCase()) {
+        case 'approved':
+          title = 'Application Approved!';
+          body  = 'Congratulations! Your application for $programme has been approved. Check your dashboard for your offer letter.';
+          break;
+        case 'rejected':
+          title = 'Application Decision';
+          body  = 'Your application for $programme has been reviewed. Please contact the admissions office for further guidance.';
+          break;
+        default:
+          title = 'Application Status Updated';
+          body  = 'Your application status has been updated to: $status.';
+      }
+      await _db.from('notifications').insert({
+        'recipient_id':   recipientId,
+        'type':           'status_update',
+        'title':          title,
+        'body':           body,
+        'metadata':       {'application_id': applicationId, 'status': status},
+      });
+    } catch (e) {
+      debugPrint('updateApplicationStatus notify error (non-fatal): $e');
+    }
   }
 
   /// Real-time stream of the current user's applications.
@@ -192,24 +276,30 @@ class SupabaseService {
   static Future<void> uploadDocument({
     required String fileName,
     required String documentType,
-    String filePath = '',
   }) async {
     final uid = currentUserId;
     if (uid == null) throw Exception('Not authenticated');
 
-    // Fetch the current application to get its ID
-    final app = await getMyApplication();
+    try {
+      // Fetch the current application to get its ID
+      final app = await getMyApplication();
 
-    final payload = <String, dynamic>{
-      'user_id': uid,
-      'file_name': fileName,
-      'document_type': documentType,
-      'verification_status': 'Pending',
-      'uploaded_at': DateTime.now().toIso8601String(),
-    };
-    if (app != null) payload['application_id'] = app['id'];
+      final payload = <String, dynamic>{
+        'user_id': uid,
+        'file_name': fileName,
+        'document_type': documentType,
+        'verification_status': 'Pending',
+        'status': 'Pending',
+        'uploaded_at': DateTime.now().toIso8601String(),
+      };
+      if (app != null) payload['application_id'] = app['id'];
 
-    await _db.from('documents').insert(payload);
+      await _db.from('documents').insert(payload);
+    } catch (e) {
+      // Log but don't rethrow — DB record is best-effort;
+      // the user must still be able to proceed.
+      debugPrint('uploadDocument DB error (non-fatal): $e');
+    }
   }
 
   /// Mark a document as verified or rejected.
@@ -508,11 +598,51 @@ class SupabaseService {
         .order('created_at', ascending: false);
   }
 
+  /// Real-time stream of admin notifications (recipient_role = 'admin').
+  static Stream<List<Map<String, dynamic>>> streamAdminNotifications() {
+    return _db
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('recipient_role', 'admin')
+        .order('created_at', ascending: false);
+  }
+
+  /// Real-time stream of notifications for the current applicant user.
+  static Stream<List<Map<String, dynamic>>> streamMyApplicantNotifications() {
+    final uid = currentUserId;
+    if (uid == null) return const Stream.empty();
+    return _db
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('recipient_id', uid)
+        .order('created_at', ascending: false);
+  }
+
   /// Mark every unread notification as read.
   static Future<void> markAllNotificationsRead() async {
     await _db
         .from('notifications')
         .update({'is_read': true})
+        .eq('is_read', false);
+  }
+
+  /// Mark all of the current user's notifications as read.
+  static Future<void> markAllMyNotificationsRead() async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    await _db
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('recipient_id', uid)
+        .eq('is_read', false);
+  }
+
+  /// Mark all admin notifications as read.
+  static Future<void> markAllAdminNotificationsRead() async {
+    await _db
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('recipient_role', 'admin')
         .eq('is_read', false);
   }
 
@@ -538,6 +668,168 @@ class SupabaseService {
       'type': type,
       'is_read': false,
     });
+  }
+
+  /// Insert a notification for a specific applicant user.
+  static Future<void> insertNotificationForUser({
+    required String recipientId,
+    required String type,
+    required String title,
+    required String body,
+    Map<String, dynamic>? metadata,
+  }) async {
+    await _db.from('notifications').insert({
+      'recipient_id': recipientId,
+      'recipient_role': 'applicant',
+      'type': type,
+      'title': title,
+      'body': body,
+      'metadata': metadata ?? {},
+      'is_read': false,
+    });
+  }
+
+  /// Insert a notification for the admin role (visible to all admins).
+  static Future<void> insertAdminNotification({
+    required String type,
+    required String title,
+    required String body,
+    Map<String, dynamic>? metadata,
+  }) async {
+    await _db.from('notifications').insert({
+      'recipient_role': 'admin',
+      'type': type,
+      'title': title,
+      'body': body,
+      'metadata': metadata ?? {},
+      'is_read': false,
+    });
+  }
+
+  /// Fetch a single application row by its Supabase UUID.
+  static Future<Map<String, dynamic>?> getApplicationById(String id) async {
+    try {
+      return await _db
+          .from('applications')
+          .select()
+          .eq('id', id)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('getApplicationById error: $e');
+      return null;
+    }
+  }
+
+  /// Update application status, add history, and send a notification to applicant.
+  static Future<void> approveApplication({
+    required String applicationId,
+    required String applicantUserId,
+    required String applicantName,
+    required String programme,
+    required String applicantType,
+  }) async {
+    await updateApplicationStatusWithHistory(applicationId, 'Approved',
+        changedBy: currentUser?.email ?? 'Admin');
+    try {
+      await insertNotificationForUser(
+        recipientId: applicantUserId,
+        type: 'status_update',
+        title: 'Application Approved 🎉',
+        body: 'Congratulations! You have been enrolled at Africa University. '
+            'Please check your offer letter.',
+        metadata: {
+          'application_id': applicationId,
+          'programme': programme,
+          'applicant_type': applicantType,
+        },
+      );
+    } catch (e) {
+      debugPrint('approveApplication notification error: $e');
+    }
+  }
+
+  /// Update application status to denied and notify applicant with reason.
+  static Future<void> denyApplication({
+    required String applicationId,
+    required String applicantUserId,
+    required String reason,
+    String? suggestedProgrammes,
+  }) async {
+    await updateApplicationStatusWithHistory(applicationId, 'Rejected',
+        notes: reason, changedBy: currentUser?.email ?? 'Admin');
+    try {
+      final body = 'Your application has been reviewed. Unfortunately, it was '
+          'not successful. Reason: $reason.'
+          '${suggestedProgrammes != null && suggestedProgrammes.isNotEmpty ? ' Suggested programmes: $suggestedProgrammes.' : ''}';
+      await insertNotificationForUser(
+        recipientId: applicantUserId,
+        type: 'status_update',
+        title: 'Application Update',
+        body: body,
+        metadata: {
+          'application_id': applicationId,
+          'reason': reason,
+          if (suggestedProgrammes != null) 'suggested_programmes': suggestedProgrammes,
+        },
+      );
+    } catch (e) {
+      debugPrint('denyApplication notification error: $e');
+    }
+  }
+
+  /// Update application status to under_review and notify applicant.
+  static Future<void> putApplicationUnderReview({
+    required String applicationId,
+    required String applicantUserId,
+  }) async {
+    await updateApplicationStatusWithHistory(applicationId, 'Under Review',
+        changedBy: currentUser?.email ?? 'Admin');
+    try {
+      await insertNotificationForUser(
+        recipientId: applicantUserId,
+        type: 'status_update',
+        title: 'Application Under Review',
+        body: 'Your application is currently under review. You will be notified once a decision is made.',
+        metadata: {'application_id': applicationId},
+      );
+    } catch (e) {
+      debugPrint('putApplicationUnderReview notification error: $e');
+    }
+  }
+
+  /// Insert notifications for all matching applicants (for announcements).
+  static Future<void> broadcastAnnouncementToApplicants({
+    required String title,
+    required String body,
+    String? audienceType, // null = all, 'local', 'international', 'postgraduate', etc.
+    String? byStatus,    // null = all, 'Pending', 'Approved', etc.
+  }) async {
+    try {
+      var query = _db.from('applications').select('user_id, type, status');
+      if (audienceType != null) {
+        query = query.ilike('type', '%$audienceType%');
+      }
+      if (byStatus != null) {
+        query = query.eq('status', byStatus);
+      }
+      final rows = await query;
+      final userIds = (rows as List)
+          .map((r) => r['user_id'] as String?)
+          .whereType<String>()
+          .toSet();
+      for (final uid in userIds) {
+        await _db.from('notifications').insert({
+          'recipient_id': uid,
+          'recipient_role': 'applicant',
+          'type': 'announcement',
+          'title': title,
+          'body': body,
+          'is_read': false,
+        });
+      }
+    } catch (e) {
+      debugPrint('broadcastAnnouncement error: $e');
+    }
   }
 
   // ── AUDIT LOGS ────────────────────────────────────────────────────────────────

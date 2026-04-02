@@ -202,7 +202,7 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
                 decoration: const InputDecoration(labelText: 'Faculty', border: OutlineInputBorder())),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: level,
+                initialValue: level,
                 decoration: const InputDecoration(labelText: 'Level', border: OutlineInputBorder()),
                 items: ['Undergraduate', 'Postgraduate']
                     .map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
@@ -210,7 +210,7 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
-                value: durationYrs,
+                initialValue: durationYrs,
                 decoration: const InputDecoration(labelText: 'Duration (years)', border: OutlineInputBorder()),
                 items: [1, 2, 3, 4, 5]
                     .map((n) => DropdownMenuItem(value: n, child: Text('$n Year${n > 1 ? "s" : ""}'))).toList(),
@@ -232,8 +232,8 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
                   await SupabaseService.insertProgramme(
                     name: name, faculty: fac, level: level, durationYears: durationYrs);
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')));
+                  if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'))); }
                 }
               },
               child: const Text('Add Programme'),
@@ -267,7 +267,7 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
                 decoration: const InputDecoration(labelText: 'Faculty', border: OutlineInputBorder())),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: ['Undergraduate', 'Postgraduate'].contains(level) ? level : 'Undergraduate',
+                initialValue: ['Undergraduate', 'Postgraduate'].contains(level) ? level : 'Undergraduate',
                 decoration: const InputDecoration(labelText: 'Level', border: OutlineInputBorder()),
                 items: ['Undergraduate', 'Postgraduate']
                     .map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
@@ -275,7 +275,7 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
-                value: [1, 2, 3, 4, 5].contains(durationYrs) ? durationYrs : 4,
+                initialValue: [1, 2, 3, 4, 5].contains(durationYrs) ? durationYrs : 4,
                 decoration: const InputDecoration(labelText: 'Duration (years)', border: OutlineInputBorder()),
                 items: [1, 2, 3, 4, 5]
                     .map((n) => DropdownMenuItem(value: n, child: Text('$n Year${n > 1 ? "s" : ""}'))).toList(),
@@ -297,8 +297,8 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
                   await SupabaseService.updateProgramme(p.id,
                     name: name, faculty: fac, level: level, durationYears: durationYrs);
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')));
+                  if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'))); }
                 }
               },
               child: const Text('Save Changes'),
@@ -333,8 +333,8 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
       try {
         await SupabaseService.deleteProgramme(p.id);
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')));
+        if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'))); }
       }
     }
   }

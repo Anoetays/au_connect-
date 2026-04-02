@@ -1,5 +1,7 @@
 /// Models for Returning Student Dashboard data structures
 
+library;
+
 // ==================== Enums ====================
 
 enum ReinstatementStatus {

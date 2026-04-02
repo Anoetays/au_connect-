@@ -69,8 +69,8 @@ class _AdminSignInScreenState extends State<AdminSignInScreen>
     } on AuthException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign-in failed: ${e.toString()}')));
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sign-in failed: ${e.toString()}'))); }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -125,8 +125,8 @@ class _AdminSignInScreenState extends State<AdminSignInScreen>
                     ));
                   }
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: ${e.toString()}')));
+                  if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: ${e.toString()}'))); }
                 }
               },
               child: Text(l10n.sendResetLink),

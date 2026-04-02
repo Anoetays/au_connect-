@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/theme/app_theme.dart';
@@ -49,12 +51,14 @@ String _timeAgo(DateTime dt) {
 
 class _AppEntry {
   final String id; // Supabase UUID
+  final String userId; // applicant's auth user_id
   final String initials, name, appId, type, country, programme, faculty,
       submitted, timeAgo;
   final _AppStatus status;
   final Color grad1, grad2;
   const _AppEntry({
     this.id = '',
+    this.userId = '',
     required this.initials,
     required this.name,
     required this.appId,
@@ -98,6 +102,7 @@ class _AppEntry {
 
     return _AppEntry(
       id:        m['id'] as String? ?? '',
+      userId:    m['user_id'] as String? ?? '',
       initials:  initials,
       name:      name,
       appId:     m['applicant_id'] as String? ?? 'AU-????',
@@ -249,13 +254,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // ── export / bulk / add ────────────────────────────────────────────────────
 
   void _exportCsv(List<_AppEntry> rows) {
-    final lines = ['ID,Name,Type,Country,Programme,Status,Submitted'];
+    final lines = ['ID,Name,Type,Country,Programme,Faculty,Status,Submitted'];
     for (final a in rows) {
-      lines.add('"${a.appId}","${a.name}","${a.type}","${a.country}","${a.programme}","${_statusStr(a.status)}","${a.submitted}"');
+      lines.add('"${a.appId}","${a.name}","${a.type}","${a.country}","${a.programme}","${a.faculty}","${_statusStr(a.status)}","${a.submitted}"');
     }
-    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    final csv = lines.join('\n');
+    final bytes = utf8.encode(csv);
+    final blob = html.Blob([bytes], 'text/csv');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final now = DateTime.now();
+    final fname = 'applications_${now.year}${now.month.toString().padLeft(2,'0')}${now.day.toString().padLeft(2,'0')}.csv';
+    html.AnchorElement(href: url)
+      ..setAttribute('download', fname)
+      ..click();
+    html.Url.revokeObjectUrl(url);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('CSV copied to clipboard')));
+      SnackBar(content: Text('Downloading ${rows.length} applications as CSV…')));
   }
 
   Future<void> _showAddApplicationDialog() async {
@@ -285,7 +299,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 decoration: const InputDecoration(labelText: 'Nationality', border: OutlineInputBorder())),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: const InputDecoration(labelText: 'Applicant Type', border: OutlineInputBorder()),
                 items: ['Local', 'International', 'Masters / PG', 'Transfer', 'Re-Admission']
                     .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
@@ -322,11 +336,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     faculty: faculty,
                     nationality: natCtrl.text.trim(),
                   );
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Application $id added')));
+                  if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Application $id added'))); }
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')));
+                  if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'))); }
                 }
               },
               child: const Text('Add Application'),
@@ -357,8 +371,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               for (final a in pending) {
                 await _setStatus(a.id, 'Under Review');
               }
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${pending.length} applications moved to Under Review')));
+              if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${pending.length} applications moved to Under Review'))); }
             },
           ),
           ListTile(
@@ -393,6 +407,197 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         targetType: 'Application',
       );
     } catch (_) {}
+  }
+
+  // ── application action handlers ────────────────────────────────────────────
+
+  /// Dispatch action from table row — routes to typed handlers.
+  Future<void> _handleAction(_AppEntry entry, String action) async {
+    if (action == 'Approve') {
+      await _handleApprove(entry);
+    } else if (action == 'Reject' || action == 'Deny') {
+      await _handleDeny(entry);
+    } else if (action == 'Under Review') {
+      await _handleReview(entry);
+    } else {
+      // Generic status change from popup
+      await _setStatus(entry.id, action);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Status → $action: ${entry.name}'),
+          duration: const Duration(seconds: 2)));
+      }
+    }
+  }
+
+  Future<void> _handleApprove(_AppEntry entry) async {
+    if (entry.id.isEmpty) return;
+    try {
+      if (entry.userId.isNotEmpty) {
+        await SupabaseService.approveApplication(
+          applicationId: entry.id,
+          applicantUserId: entry.userId,
+          applicantName: entry.name,
+          programme: entry.programme,
+          applicantType: entry.type,
+        );
+      } else {
+        await _setStatus(entry.id, 'Approved');
+      }
+      // Also send an admin notification for the audit trail
+      try {
+        await SupabaseService.insertAdminNotification(
+          type: 'status_update',
+          title: 'Application Approved — ${entry.name}',
+          body: '${entry.programme} application (${entry.appId}) has been approved.',
+        );
+      } catch (_) {}
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('✅ Application approved: ${entry.name}'),
+          backgroundColor: _kGreen,
+          duration: const Duration(seconds: 2)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: _kRed));
+      }
+    }
+  }
+
+  Future<void> _handleDeny(_AppEntry entry) async {
+    if (entry.id.isEmpty) return;
+    final reasonCtrl = TextEditingController();
+    final suggestedCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: _kRedSoft, borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.close_rounded, size: 16, color: _kRed)),
+          const SizedBox(width: 12),
+          Text('Deny Application',
+            style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 16)),
+        ]),
+        content: SizedBox(
+          width: 380,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('Provide a reason for denying ${entry.name}\'s application.',
+              style: GoogleFonts.dmSans(fontSize: 13, color: _kMuted)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Reason for denial *',
+                hintText: 'e.g. Insufficient academic qualifications',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.all(12)),
+              style: GoogleFonts.dmSans(fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: suggestedCtrl,
+              decoration: InputDecoration(
+                labelText: 'Suggested programmes (optional)',
+                hintText: 'e.g. Diploma in Business Administration',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.all(12)),
+              style: GoogleFonts.dmSans(fontSize: 13),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.dmSans())),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kRed, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9))),
+            onPressed: () {
+              if (reasonCtrl.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: Text('Deny Application', style: GoogleFonts.dmSans(fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        if (entry.userId.isNotEmpty) {
+          await SupabaseService.denyApplication(
+            applicationId: entry.id,
+            applicantUserId: entry.userId,
+            reason: reasonCtrl.text.trim(),
+            suggestedProgrammes: suggestedCtrl.text.trim().isNotEmpty
+                ? suggestedCtrl.text.trim()
+                : null,
+          );
+        } else {
+          await _setStatus(entry.id, 'Rejected');
+        }
+        try {
+          await SupabaseService.insertAdminNotification(
+            type: 'status_update',
+            title: 'Application Denied — ${entry.name}',
+            body: '${entry.programme} application (${entry.appId}) denied. Reason: ${reasonCtrl.text.trim()}',
+          );
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('❌ Application denied: ${entry.name}'),
+            backgroundColor: _kRed,
+            duration: const Duration(seconds: 2)));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: _kRed));
+        }
+      }
+    }
+    reasonCtrl.dispose();
+    suggestedCtrl.dispose();
+  }
+
+  Future<void> _handleReview(_AppEntry entry) async {
+    if (entry.id.isEmpty) return;
+    try {
+      if (entry.userId.isNotEmpty) {
+        await SupabaseService.putApplicationUnderReview(
+          applicationId: entry.id,
+          applicantUserId: entry.userId,
+        );
+      } else {
+        await _setStatus(entry.id, 'Under Review');
+      }
+      try {
+        await SupabaseService.insertAdminNotification(
+          type: 'status_update',
+          title: 'Application Under Review — ${entry.name}',
+          body: '${entry.programme} application (${entry.appId}) moved to under review.',
+        );
+      } catch (_) {}
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('🔍 Under review: ${entry.name}'),
+          backgroundColor: _kAmber,
+          duration: const Duration(seconds: 2)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: _kRed));
+      }
+    }
   }
 
   @override
@@ -738,25 +943,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ...apps.asMap().entries.map((e) => _AppRow(
                 entry: e.value,
                 isLast: e.key == apps.length - 1,
-                onAction: (action) {
-                  final statusMap = {
-                    'Approve': 'Approved',
-                    'Reject': 'Rejected',
-                    'Pending': 'Pending',
-                    'Under Review': 'Under Review',
-                    'Approved': 'Approved',
-                    'Rejected': 'Rejected',
-                  };
-                  final newStatus = statusMap[action];
-                  if (newStatus != null) {
-                    _setStatus(e.value.id, newStatus);
-                    final isPositive = newStatus == 'Approved';
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('Status → $newStatus: ${e.value.name}'),
-                      backgroundColor: isPositive ? _kGreen : (newStatus == 'Rejected' ? _kRed : _kAmber),
-                      duration: const Duration(seconds: 2)));
-                  }
-                },
+                onAction: (action) => _handleAction(e.value, action),
               )),
           ]),
         ),
@@ -1681,20 +1868,21 @@ class _AppRowState extends State<_AppRow> {
           Expanded(flex: 2, child: _StatusPill(e.status)),
           // Actions
           Expanded(flex: 4, child: Row(children: [
-            _QBtn(Icons.check_rounded, 'Approve',
+            _QBtn(Icons.check_rounded, 'Accept',
                 color: _kGreen, onTap: () => widget.onAction('Approve')),
-            _QBtn(Icons.close_rounded, 'Reject',
+            _QBtn(Icons.close_rounded, 'Deny',
                 color: _kRed, onTap: () => widget.onAction('Reject')),
-            // Status dropdown
+            _QBtn(Icons.manage_search_rounded, 'Under Review',
+                color: _kAmber, onTap: () => widget.onAction('Under Review')),
+            // More options
             PopupMenuButton<String>(
-              tooltip: 'Change Status',
+              tooltip: 'More options',
               icon: const Icon(Icons.more_vert_rounded, size: 16, color: _kMuted),
               onSelected: (s) => widget.onAction(s),
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'Pending',      child: Text('Pending')),
-                const PopupMenuItem(value: 'Under Review', child: Text('Under Review')),
-                const PopupMenuItem(value: 'Approved',     child: Text('Approved')),
-                const PopupMenuItem(value: 'Rejected',     child: Text('Rejected')),
+                const PopupMenuItem(value: 'Pending',      child: Text('Set Pending')),
+                const PopupMenuItem(value: 'Approved',     child: Text('Set Approved')),
+                const PopupMenuItem(value: 'Rejected',     child: Text('Set Rejected')),
               ],
             ),
           ])),

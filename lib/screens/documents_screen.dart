@@ -250,8 +250,8 @@ class _DocumentsPageState extends State<DocumentsPage> {
           await SupabaseService.verifyDocument(d.id);
         } catch (_) {}
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${pending.length} documents verified')));
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${pending.length} documents verified'))); }
     }
   }
 
@@ -298,8 +298,8 @@ class _DocumentsPageState extends State<DocumentsPage> {
                   targetType: 'Applicant',
                 );
               } catch (_) {}
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Document request sent to $email')));
+              if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Document request sent to $email'))); }
             },
             child: const Text('Send Request'),
           ),

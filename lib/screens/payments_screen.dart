@@ -415,6 +415,20 @@ class _PaymentsScreenState extends State<PaymentsScreen>
                       : 'Select a payment method',
               onTap: _handlePayment,
             ),
+            const SizedBox(height: 10),
+            // TODO: Remove before production — test bypass
+            TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: widget.nextRoute ?? (_) => const SubmitApplicationScreen(),
+                ),
+              ),
+              child: const Text(
+                'Skip Payment (Test Only)',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
           ] else ...[
             // Paid banner
             Container(

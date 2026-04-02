@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/theme/app_theme.dart';
@@ -144,21 +146,71 @@ class _ReportsPageState extends State<ReportsPage> {
     }).where((t) => t.count > 0).toList();
   }
 
+  void _downloadCsv(String csvContent, String filename) {
+    final bytes = utf8.encode(csvContent);
+    final blob = html.Blob([bytes], 'text/csv');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    html.AnchorElement(href: url)
+      ..setAttribute('download', filename)
+      ..click();
+    html.Url.revokeObjectUrl(url);
+  }
+
   void _generateReport() {
-    final lines = ['ID,Name,Type,Nationality,Programme,Status,Submitted'];
+    final lines = ['ID,Name,Type,Nationality,Programme,Faculty,Status,Submitted'];
     for (final r in _apps) {
-      final name  = r['applicant_name'] as String? ?? '';
+      final name  = (r['applicant_name'] as String? ?? '').replaceAll('"', '""');
       final id    = r['applicant_id']   as String? ?? '';
       final type  = r['type']           as String? ?? '';
       final nat   = r['nationality']    as String? ?? '';
-      final prog  = r['programme']      as String? ?? '';
+      final prog  = (r['programme']     as String? ?? '').replaceAll('"', '""');
+      final fac   = (r['faculty']       as String? ?? '').replaceAll('"', '""');
       final stat  = r['status']         as String? ?? '';
       final sub   = r['submitted_at']   as String? ?? '';
-      lines.add('"$id","$name","$type","$nat","$prog","$stat","$sub"');
+      lines.add('"$id","$name","$type","$nat","$prog","$fac","$stat","$sub"');
     }
-    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    _downloadCsv(lines.join('\n'), 'applications_summary_${_today()}.csv');
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Report CSV (${_apps.length} rows) copied to clipboard')));
+      SnackBar(content: Text('Downloading applications report (${_apps.length} rows)…')));
+  }
+
+  void _generateDailyEnrollmentReport() {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayApps = _apps.where((r) {
+      final dt = DateTime.tryParse(r['submitted_at'] as String? ?? '')?.toLocal();
+      return dt != null && !dt.isBefore(todayStart);
+    }).toList();
+    final local = todayApps.where((r) => !(r['type'] as String? ?? '').toLowerCase().contains('international')).length;
+    final international = todayApps.length - local;
+
+    final lines = ['Date,Total Enrolled,Local,International'];
+    lines.add('"${_today()}","${todayApps.length}","$local","$international"');
+    _downloadCsv(lines.join('\n'), 'daily_enrollment_${_today()}.csv');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Daily report downloaded — ${todayApps.length} enrolments today')));
+  }
+
+  void _generateProgrammeReport() {
+    final byProg = <String, int>{};
+    for (final r in _apps) {
+      final prog = r['programme'] as String? ?? 'Unknown';
+      byProg[prog] = (byProg[prog] ?? 0) + 1;
+    }
+    final sorted = byProg.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final lines = ['Programme,Applicants'];
+    for (final e in sorted) {
+      lines.add('"${e.key.replaceAll('"', '""')}","${e.value}"');
+    }
+    _downloadCsv(lines.join('\n'), 'programme_popularity_${_today()}.csv');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Programme popularity report downloaded')));
+  }
+
+  String _today() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2,'0')}-${n.day.toString().padLeft(2,'0')}';
   }
 
   Future<void> _showScheduleDialog() async {
@@ -295,14 +347,27 @@ class _ReportsPageState extends State<ReportsPage> {
             final cols = bc.maxWidth > 900 ? 3 : bc.maxWidth > 580 ? 2 : 1;
             final spacing = (cols - 1) * 10.0;
             final cardW = (bc.maxWidth - spacing) / cols;
+            // Map template index → download callback
+            final downloadFns = <int, VoidCallback>{
+              0: _generateReport,
+              1: _generateReport,
+              2: _generateProgrammeReport,
+              3: _showScheduleDialog,
+              4: _generateDailyEnrollmentReport,
+              5: _generateReport,
+            };
             final rows = <Widget>[];
             for (var i = 0; i < _kTemplates.length; i += cols) {
               if (i > 0) rows.add(const SizedBox(height: 10));
               final rowCards = <Widget>[];
               for (var j = 0; j < cols && i + j < _kTemplates.length; j++) {
+                final idx = i + j;
                 if (j > 0) rowCards.add(const SizedBox(width: 10));
                 rowCards.add(SizedBox(width: cardW,
-                  child: _ReportCard(t: _kTemplates[i + j])));
+                  child: _ReportCard(
+                    t: _kTemplates[idx],
+                    onDownload: downloadFns[idx],
+                  )));
               }
               rows.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: rowCards));
             }
@@ -555,7 +620,8 @@ class _AppTypeCard extends StatelessWidget {
 // ── _ReportCard ───────────────────────────────────────────────────────────────
 class _ReportCard extends StatefulWidget {
   final _ReportTemplate t;
-  const _ReportCard({required this.t});
+  final VoidCallback? onDownload;
+  const _ReportCard({required this.t, this.onDownload});
   @override State<_ReportCard> createState() => _ReportCardState();
 }
 class _ReportCardState extends State<_ReportCard> {
@@ -606,7 +672,8 @@ class _ReportCardState extends State<_ReportCard> {
                     opacity: _hov ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 200),
                     child: Row(children: [
-                      _QaBtn(tip: 'Download', icon: Icons.download_rounded),
+                      _QaBtn(tip: 'Download', icon: Icons.download_rounded,
+                          onTap: widget.onDownload),
                       const SizedBox(width: 5),
                       _QaBtn(tip: 'Schedule', icon: Icons.calendar_today_outlined),
                     ]),
@@ -673,7 +740,8 @@ class _StatusPill extends StatelessWidget {
 class _QaBtn extends StatefulWidget {
   final String tip;
   final IconData icon;
-  const _QaBtn({required this.tip, required this.icon});
+  final VoidCallback? onTap;
+  const _QaBtn({required this.tip, required this.icon, this.onTap});
   @override State<_QaBtn> createState() => _QaBtnState();
 }
 class _QaBtnState extends State<_QaBtn> {
@@ -688,15 +756,18 @@ class _QaBtnState extends State<_QaBtn> {
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hov = true),
         onExit:  (_) => setState(() => _hov = false),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 28, height: 28,
-          decoration: BoxDecoration(
-            color: _hov ? _kRedSoft : Colors.white,
-            borderRadius: BorderRadius.circular(7),
-            border: Border.all(color: _hov ? _kRed : _kBorder, width: 1.5),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: _hov ? _kRedSoft : Colors.white,
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(color: _hov ? _kRed : _kBorder, width: 1.5),
+            ),
+            child: Icon(widget.icon, size: 13, color: _hov ? _kRed : _kMuted),
           ),
-          child: Icon(widget.icon, size: 13, color: _hov ? _kRed : _kMuted),
         ),
       ),
     );

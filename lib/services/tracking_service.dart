@@ -195,7 +195,7 @@ class TrackingService {
         return data;
       }
     } catch (e) {
-      print('Error fetching application status: $e');
+      debugPrint('Error fetching application status: $e');
     }
     return null;
   }

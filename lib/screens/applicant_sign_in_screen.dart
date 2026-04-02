@@ -85,17 +85,18 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen>
                 final email = emailCtrl.text.trim();
                 if (email.isEmpty) return;
                 Navigator.pop(ctx);
+                final messenger = ScaffoldMessenger.of(context);
                 try {
                   await _authService.resetPassword(email);
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    messenger.showSnackBar(SnackBar(
                       content: Text('Password reset link sent to $email'),
                       backgroundColor: AppTheme.statusApproved,
                     ));
                   }
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    messenger.showSnackBar(SnackBar(
                       content: Text('Failed to send reset email: $e'),
                     ));
                   }

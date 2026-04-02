@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import 'personal_information_screen.dart';
+import 'select_program_screen.dart';
+import 'document_upload_screen.dart';
+import 'payments_screen.dart';
+import 'submit_application_screen.dart';
 import 'package:au_connect/theme/app_theme.dart';
 
 // ─── color tokens ─────────────────────────────────────────────────────────────
@@ -91,7 +95,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     if (!_canSubmit) return;
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PersonalInformationScreen()),
+      MaterialPageRoute(
+        builder: (_) => PersonalInformationScreen(
+          nextRoute: (_) => SelectProgramScreen(
+            nextRoute: (_) => DocumentUploadScreen(
+              nextRoute: (_) => PaymentsScreen(
+                nextRoute: (_) => const SubmitApplicationScreen(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

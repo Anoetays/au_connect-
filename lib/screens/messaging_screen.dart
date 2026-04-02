@@ -11,8 +11,8 @@ class MessagingScreen extends StatefulWidget {
     required this.currentUserId,
     required this.currentUserName,
     required this.currentUserRole,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<MessagingScreen> createState() => _MessagingScreenState();
@@ -127,8 +127,8 @@ class ConversationDetailScreen extends StatefulWidget {
     required this.currentUserId,
     required this.currentUserName,
     required this.currentUserRole,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<ConversationDetailScreen> createState() =>
@@ -169,10 +169,15 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.conversation.participantName),
-        subtitle: Text(
-          widget.conversation.participantRole.toString().split('.').last,
-          style: const TextStyle(fontSize: 12),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.conversation.participantName),
+            Text(
+              widget.conversation.participantRole.toString().split('.').last,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
         ),
       ),
       body: Column(

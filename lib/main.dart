@@ -23,6 +23,7 @@ import 'package:au_connect/screens/language_selection_screen.dart';
 import 'package:au_connect/screens/application_progress_screen.dart';
 import 'package:au_connect/screens/payment_history_screen.dart';
 import 'package:au_connect/screens/profile_settings_screen.dart';
+import 'package:au_connect/screens/visa_application_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -132,6 +133,7 @@ class _AuConnectAppState extends State<AuConnectApp>
         // Settings
         '/language_change': (context) =>
             const LanguageSelectionScreen(isChange: true),
+        '/visa_application': (context) => const VisaApplicationScreen(),
       },
     );
   }

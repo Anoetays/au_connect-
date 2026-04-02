@@ -8,6 +8,8 @@
 /// 3. Copy the anon key (starts with eyJ...)
 /// 4. Replace the values below
 
+library;
+
 class SupabaseConfig {
   /// Supabase Project URL
   static const String supabaseUrl = 'https://lwnblbrohablulbeiruf.supabase.co';

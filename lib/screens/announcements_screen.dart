@@ -148,7 +148,8 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
       _AnnPriority.urgent   => 'Urgent',
       _AnnPriority.normal   => 'Normal',
     };
-    final audience = _audiences.contains(_AnnAudience.everyone)
+    final isEveryone = _audiences.contains(_AnnAudience.everyone);
+    final audience = isEveryone
         ? 'Everyone'
         : switch (_audiences.first) {
             _AnnAudience.applicant     => 'Applicant',
@@ -159,7 +160,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
           };
     final status = _scheduleLater ? 'Scheduled' : 'Live';
 
-    // Persist to Supabase
+    // Persist announcement row to Supabase
     try {
       await SupabaseService.postAnnouncement(
         title: title,
@@ -178,6 +179,28 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
         targetType: 'Announcement',
       );
     } catch (_) {}
+
+    // Broadcast notification rows to matching applicants (only when Live)
+    if (!_scheduleLater) {
+      try {
+        // Determine audience type filter
+        String? audienceFilter;
+        if (!isEveryone && _audiences.isNotEmpty) {
+          audienceFilter = switch (_audiences.first) {
+            _AnnAudience.international => 'international',
+            _AnnAudience.postgraduate  => 'masters',
+            _AnnAudience.applicant     => null, // all applicants
+            _AnnAudience.student       => null,
+            _AnnAudience.everyone      => null,
+          };
+        }
+        await SupabaseService.broadcastAnnouncementToApplicants(
+          title: title,
+          body: body.isNotEmpty ? body : title,
+          audienceType: audienceFilter,
+        );
+      } catch (_) {}
+    }
 
     // Also update local UI immediately
     final entry = _AnnEntry(

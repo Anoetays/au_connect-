@@ -3,6 +3,8 @@
 /// This is shared across multiple screens and stored as part of the persistent
 /// applicant dashboard state.
 
+library;
+
 enum InstitutionType {
   highSchool,
   collegeUniversity,
