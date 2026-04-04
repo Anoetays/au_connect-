@@ -5,6 +5,7 @@ import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/services/anthropic_service.dart';
 import 'package:au_connect/services/application_state.dart';
+import 'package:au_connect/l10n/app_localizations.dart';
 import 'chatbot_dashboard_screen.dart';
 import 'application_progress_screen.dart';
 import 'payment_history_screen.dart';
@@ -15,6 +16,8 @@ import 'masters_postgrad_docs_screen.dart';
 import 'select_program_screen.dart';
 import 'payments_screen.dart';
 import 'submit_application_screen.dart';
+import 'applicant_announcements_screen.dart';
+import 'applicant_interviews_screen.dart';
 
 // ─── color tokens ──────────────────────────────────────────────────────────────
 const _kRed      = AppTheme.primaryCrimson;
@@ -93,6 +96,8 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   String get _firstName {
+    final username = _profile?['username'] as String?;
+    if (username != null && username.isNotEmpty) return username;
     final full = (_profile?['full_name'] as String?) ?? '';
     return full.isNotEmpty ? full.split(' ').first : 'Student';
   }
@@ -158,7 +163,7 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(ctx)!.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -166,7 +171,7 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
               backgroundColor: _kRed,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Log Out'),
+            child: Text(AppLocalizations.of(ctx)!.logout),
           ),
         ],
       ),
@@ -284,6 +289,7 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
   // ── Drawer ─────────────────────────────────────────────────────────────────
 
   Widget _buildDrawer(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final initials = _firstName.isNotEmpty ? _firstName[0].toUpperCase() : 'M';
     final email = SupabaseService.currentUser?.email ?? '';
 
@@ -361,47 +367,57 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
                 children: [
                   _DrawerItem(
                     icon: Icons.dashboard_outlined,
-                    label: 'Dashboard',
+                    label: l10n.dashboard,
                     active: true,
                     onTap: () => Navigator.pop(context),
                   ),
                   _DrawerItem(
                     icon: Icons.track_changes_outlined,
-                    label: 'Application Progress',
+                    label: l10n.applicationProgress,
                     onTap: () =>
                         _navigate(const ApplicationProgressScreen()),
                   ),
                   _DrawerItem(
                     icon: Icons.flight_outlined,
-                    label: 'Travel & Visa',
+                    label: '${l10n.visa} & Travel',
                     onTap: () {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Travel & Visa — coming soon')),
+                        SnackBar(
+                            content: Text('${l10n.visa} & Travel — coming soon')),
                       );
                     },
                   ),
                   _DrawerItem(
                     icon: Icons.payment_outlined,
-                    label: 'Payments',
+                    label: l10n.payments,
                     onTap: () => _navigate(const PaymentHistoryScreen()),
                   ),
                   _DrawerItem(
                     icon: Icons.directions_bus_outlined,
-                    label: 'Transport',
+                    label: l10n.transport,
                     onTap: () {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Transport — coming soon')),
+                        SnackBar(
+                            content: Text('${l10n.transport} — coming soon')),
                       );
                     },
+                  ),
+                  _DrawerItem(
+                    icon: Icons.campaign_outlined,
+                    label: l10n.announcements,
+                    onTap: () => _navigate(const ApplicantAnnouncementsScreen()),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.calendar_today_outlined,
+                    label: 'Interviews',
+                    onTap: () => _navigate(const ApplicantInterviewsScreen()),
                   ),
                   const Divider(height: 1),
                   _DrawerItem(
                     icon: Icons.settings_outlined,
-                    label: 'Settings',
+                    label: l10n.settings,
                     onTap: () => _navigate(const ProfileSettingsScreen()),
                   ),
                 ],
@@ -411,7 +427,7 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
             const Divider(height: 1),
             _DrawerItem(
               icon: Icons.logout,
-              label: 'Logout',
+              label: l10n.logout,
               danger: true,
               onTap: () {
                 Navigator.pop(context);
@@ -506,7 +522,7 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Application Progress',
+              Text(AppLocalizations.of(context)!.applicationProgress,
                   style: GoogleFonts.dmSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -809,8 +825,8 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
                     children: [
                       Text(
                         _application != null
-                            ? 'Check Application Progress'
-                            : 'Get Started',
+                            ? 'Check ${AppLocalizations.of(context)!.applicationProgress}'
+                            : AppLocalizations.of(context)!.getStarted,
                         style: GoogleFonts.dmSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,

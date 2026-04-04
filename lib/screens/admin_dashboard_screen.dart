@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:au_connect/services/export_csv.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/screens/programmes_screen.dart';
@@ -14,6 +13,7 @@ import 'package:au_connect/screens/announcements_screen.dart';
 import 'package:au_connect/screens/interviews_screen.dart';
 import 'package:au_connect/screens/reports_screen.dart';
 import 'package:au_connect/screens/audit_log_screen.dart';
+import 'package:au_connect/l10n/app_localizations.dart';
 
 // ── colour tokens ─────────────────────────────────────────────────────────────
 const _kRed     = AppTheme.primaryCrimson;
@@ -49,6 +49,52 @@ String _timeAgo(DateTime dt) {
   return _fmtDate(dt);
 }
 
+String _s(dynamic v, [String fallback = '']) {
+  if (v == null) return fallback;
+  final text = v.toString();
+  return text.isEmpty ? fallback : text;
+}
+
+DateTime _dt(dynamic v) {
+  if (v == null) return DateTime.now();
+  if (v is DateTime) return v;
+  return DateTime.tryParse(v.toString()) ?? DateTime.now();
+}
+
+// Returns 1–2 uppercase initials from the admin's name or email.
+String _adminInitials() {
+  final user = SupabaseService.currentUser;
+  final fullName = _s(user?.userMetadata?['full_name']);
+  if (fullName.isNotEmpty) {
+    final parts = fullName.split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+  final email = user?.email ?? '';
+  final local = email.split('@').first;
+  final parts = local.split(RegExp(r'[._\-+]')).where((p) => p.isNotEmpty).toList();
+  if (parts.length >= 2) {
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+  return local.isNotEmpty ? local[0].toUpperCase() : 'AU';
+}
+
+// Returns a friendly display name for the admin.
+String _adminDisplayName() {
+  final user = SupabaseService.currentUser;
+  final fullName = _s(user?.userMetadata?['full_name']);
+  if (fullName.isNotEmpty) {
+    return fullName.split(' ').first;
+  }
+  final email = user?.email ?? '';
+  final local = email.split('@').first;
+  final first = local.split(RegExp(r'[._\-+]')).firstWhere(
+    (p) => p.isNotEmpty, orElse: () => 'Admin');
+  return first[0].toUpperCase() + first.substring(1).toLowerCase();
+}
+
 class _AppEntry {
   final String id; // Supabase UUID
   final String userId; // applicant's auth user_id
@@ -74,23 +120,21 @@ class _AppEntry {
   });
 
   factory _AppEntry.fromMap(Map<String, dynamic> m) {
-    final name = (m['applicant_name'] as String? ?? '').trim();
+    final name = _s(m['applicant_name']).trim();
     final parts = name.split(RegExp(r'\s+'));
     final initials = parts.length >= 2
         ? '${parts.first[0]}${parts.last[0]}'.toUpperCase()
         : name.isNotEmpty ? name[0].toUpperCase() : '?';
 
-    final statusStr = m['status'] as String? ?? 'Pending';
+    final statusStr = _s(m['status'], 'Pending');
     final status = statusStr == 'Approved'    ? _AppStatus.approved
         : statusStr == 'Rejected'             ? _AppStatus.rejected
         : statusStr == 'Under Review'         ? _AppStatus.review
         : _AppStatus.pending;
 
-    final submittedAt = m['submitted_at'] != null
-        ? DateTime.tryParse(m['submitted_at'] as String) ?? DateTime.now()
-        : DateTime.now();
+    final submittedAt = _dt(m['submitted_at']);
 
-    final type = (m['type'] as String? ?? '');
+    final type = _s(m['type']);
     Color grad1, grad2;
     switch (type.toLowerCase()) {
       case 'international': grad1 = const Color(0xFF3A5FCC); grad2 = const Color(0xFF2040AA); break;
@@ -101,15 +145,15 @@ class _AppEntry {
     }
 
     return _AppEntry(
-      id:        m['id'] as String? ?? '',
-      userId:    m['user_id'] as String? ?? '',
+      id:        _s(m['id']),
+      userId:    _s(m['user_id']),
       initials:  initials,
       name:      name,
-      appId:     m['applicant_id'] as String? ?? 'AU-????',
+      appId:     _s(m['application_code'] ?? m['applicant_id'], 'AU-????'),
       type:      type,
-      country:   m['nationality'] as String? ?? '',
-      programme: m['programme']   as String? ?? '',
-      faculty:   m['faculty']     as String? ?? '',
+      country:   _s(m['nationality']),
+      programme: _s(m['programme']),
+      faculty:   _s(m['faculty']),
       submitted: _fmtDate(submittedAt),
       timeAgo:   _timeAgo(submittedAt),
       status:    status,
@@ -168,8 +212,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int get _thisWeek {
     final cutoff = DateTime.now().subtract(const Duration(days: 7));
     return _liveApps.where((a) {
-      final s = a['submitted_at'] as String?;
-      return s != null && (DateTime.tryParse(s) ?? DateTime(2000)).isAfter(cutoff);
+      final dt = DateTime.tryParse(_s(a['submitted_at']));
+      return dt != null && dt.isAfter(cutoff);
     }).length;
   }
 
@@ -177,9 +221,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final now = DateTime.now();
     final counts = List.filled(8, 0);
     for (final a in _liveApps) {
-      final s = a['submitted_at'] as String?;
-      if (s == null) continue;
-      final dt = DateTime.tryParse(s);
+      final dt = DateTime.tryParse(_s(a['submitted_at']));
       if (dt == null) continue;
       final weeksAgo = now.difference(dt).inDays ~/ 7;
       if (weeksAgo >= 0 && weeksAgo < 8) counts[7 - weeksAgo]++;
@@ -190,8 +232,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<Map<String, dynamic>> get _recentApps {
     final sorted = _liveApps.toList()
       ..sort((a, b) {
-        final sa = a['submitted_at'] as String? ?? '';
-        final sb = b['submitted_at'] as String? ?? '';
+        final sa = _s(a['submitted_at']);
+        final sb = _s(b['submitted_at']);
         return sb.compareTo(sa);
       });
     return sorted.take(5).toList();
@@ -201,7 +243,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Map<String, int> get _byType {
     final counts = <String, int>{};
     for (final a in _liveApps) {
-      final t = (a['type'] as String? ?? 'Other').trim();
+      final t = _s(a['type'], 'Other').trim();
       counts[t] = (counts[t] ?? 0) + 1;
     }
     return counts;
@@ -211,7 +253,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<(String, int, double)> get _topCountries {
     final counts = <String, int>{};
     for (final a in _liveApps) {
-      final c = (a['nationality'] as String? ?? 'Unknown').trim();
+      final c = _s(a['nationality'], 'Unknown').trim();
       if (c.isEmpty) continue;
       counts[c] = (counts[c] ?? 0) + 1;
     }
@@ -259,26 +301,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       lines.add('"${a.appId}","${a.name}","${a.type}","${a.country}","${a.programme}","${a.faculty}","${_statusStr(a.status)}","${a.submitted}"');
     }
     final csv = lines.join('\n');
-    final bytes = utf8.encode(csv);
-    final blob = html.Blob([bytes], 'text/csv');
-    final url = html.Url.createObjectUrlFromBlob(blob);
     final now = DateTime.now();
-    final fname = 'applications_${now.year}${now.month.toString().padLeft(2,'0')}${now.day.toString().padLeft(2,'0')}.csv';
-    html.AnchorElement(href: url)
-      ..setAttribute('download', fname)
-      ..click();
-    html.Url.revokeObjectUrl(url);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Downloading ${rows.length} applications as CSV…')));
+    final fname = 'applications_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv';
+
+    try {
+      ExportCsv.downloadCsv(csv, fname);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Downloading ${rows.length} applications as CSV…')));
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CSV export is available on web only.')));
+    }
   }
 
   Future<void> _showAddApplicationDialog() async {
-    final nameCtrl  = TextEditingController();
+    final firstNameCtrl = TextEditingController();
+    final surnameCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
-    final natCtrl   = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final natCtrl = TextEditingController();
     String type = 'Local';
     String? selectedProgramme;
     String faculty = '';
+    List<PlatformFile> selectedFiles = [];
 
     await showDialog<void>(
       context: context,
@@ -286,36 +331,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         builder: (ctx, setDlg) => AlertDialog(
           title: const Text('Add Application', style: TextStyle(fontWeight: FontWeight.bold)),
           content: SizedBox(
-            width: 380,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              TextField(controller: emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              TextField(controller: natCtrl,
-                decoration: const InputDecoration(labelText: 'Nationality', border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                initialValue: type,
-                decoration: const InputDecoration(labelText: 'Applicant Type', border: OutlineInputBorder()),
-                items: ['Local', 'International', 'Masters / PG', 'Transfer', 'Re-Admission']
-                    .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                onChanged: (v) => setDlg(() => type = v!),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                onChanged: (v) => setDlg(() => selectedProgramme = v),
-                decoration: const InputDecoration(labelText: 'Programme', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                onChanged: (v) => setDlg(() => faculty = v),
-                decoration: const InputDecoration(labelText: 'Faculty', border: OutlineInputBorder()),
-              ),
-            ]),
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(controller: firstNameCtrl,
+                  decoration: const InputDecoration(labelText: 'First Name', border: OutlineInputBorder())),
+                const SizedBox(height: 10),
+                TextField(controller: surnameCtrl,
+                  decoration: const InputDecoration(labelText: 'Surname', border: OutlineInputBorder())),
+                const SizedBox(height: 10),
+                TextField(controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder())),
+                const SizedBox(height: 10),
+                TextField(controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Phone', border: OutlineInputBorder())),
+                const SizedBox(height: 10),
+                TextField(controller: natCtrl,
+                  decoration: const InputDecoration(labelText: 'Nationality', border: OutlineInputBorder())),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: type,
+                  decoration: const InputDecoration(labelText: 'Applicant Type', border: OutlineInputBorder()),
+                  items: ['Local', 'International', 'Masters / PG', 'Transfer', 'Re-Admission']
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                  onChanged: (v) => setDlg(() => type = v!),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  onChanged: (v) => setDlg(() => selectedProgramme = v),
+                  decoration: const InputDecoration(labelText: 'Programme', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  onChanged: (v) => setDlg(() => faculty = v),
+                  decoration: const InputDecoration(labelText: 'Faculty', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: Text('Documents: ${selectedFiles.length} selected')),
+                  TextButton(
+                    onPressed: () async {
+                      final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+                      if (result != null) {
+                        setDlg(() => selectedFiles = result.files);
+                      }
+                    },
+                    child: const Text('Select Files'),
+                  ),
+                ]),
+                if (selectedFiles.isNotEmpty)
+                  Column(children: selectedFiles.map((f) => Text(f.name)).toList()),
+              ]),
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx),
@@ -323,24 +392,44 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _kRed, foregroundColor: Colors.white),
               onPressed: () async {
-                final name  = nameCtrl.text.trim();
+                final firstName = firstNameCtrl.text.trim();
+                final surname = surnameCtrl.text.trim();
                 final email = emailCtrl.text.trim();
-                if (name.isEmpty || email.isEmpty) return;
+                final phone = phoneCtrl.text.trim();
+                if (firstName.isEmpty || surname.isEmpty || email.isEmpty) return;
                 Navigator.pop(ctx);
                 try {
+                  final fullName = '$firstName $surname';
                   final id = await SupabaseService.submitApplication(
-                    applicantName: name,
+                    applicantName: fullName,
                     email: email,
                     type: type,
                     programme: selectedProgramme ?? '',
                     faculty: faculty,
                     nationality: natCtrl.text.trim(),
+                    phone: phone,
+                    source: 'admin_manual',
                   );
-                  if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Application $id added'))); }
+                  // Upload documents if any
+                  for (final file in selectedFiles) {
+                    if (file.bytes != null) {
+                      await SupabaseService.uploadDocument(
+                        applicationId: id,
+                        documentType: 'admin_uploaded',
+                        fileName: file.name,
+                        fileBytes: file.bytes!,
+                      );
+                    }
+                  }
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Application $id added with ${selectedFiles.length} documents')));
+                  }
                 } catch (e) {
-                  if (mounted) { ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'))); }
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')));
+                  }
                 }
               },
               child: const Text('Add Application'),
@@ -349,8 +438,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
       ),
     );
-    nameCtrl.dispose();
+    firstNameCtrl.dispose();
+    surnameCtrl.dispose();
     emailCtrl.dispose();
+    phoneCtrl.dispose();
     natCtrl.dispose();
   }
 
@@ -600,8 +691,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  Future<void> _showLogoutDialog() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.logout, style: GoogleFonts.dmSerifDisplay(fontSize: 20, color: _kDark)),
+        content: Text('Are you sure you want to sign out of the Admin Portal?',
+            style: GoogleFonts.dmSans(fontSize: 14, color: _kMuted)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel, style: GoogleFonts.dmSans(color: _kMuted))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _kRed, foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.logout, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await SupabaseService.signOut();
+      if (mounted) Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: _kBg,
       body: LayoutBuilder(builder: (context, cs) {
@@ -618,40 +737,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               if (wide)
                 _Sidebar(
                   selected: _navIdx,
-                  onSelect: (i) => setState(() => _navIdx = i),
+                  onSelect: (i) {
+                    if (i == 12) { _showLogoutDialog(); return; }
+                    setState(() => _navIdx = i);
+                  },
                 ),
               Expanded(child: Column(children: [
                 _TopBar(subtitle: _navIdx == 0
-                    ? 'Dashboard Overview'
+                    ? '${l10n.dashboard} Overview'
+                    : _navIdx == 2 ? 'Students'
                     : _navIdx == 3 ? 'Programmes'
-                    : _navIdx == 4 ? 'Documents'
+                    : _navIdx == 4 ? l10n.documents
                     : _navIdx == 5 ? 'Users / Staff'
-                    : _navIdx == 6 ? 'Notifications'
-                    : _navIdx == 7 ? 'Announcements'
+                    : _navIdx == 6 ? l10n.notifications
+                    : _navIdx == 7 ? l10n.announcements
                     : _navIdx == 8 ? 'Interviews'
                     : _navIdx == 9 ? 'Reports'
                     : _navIdx == 10 ? 'Audit Log'
-                    : 'Application Review'),
+                    : _navIdx == 11 ? l10n.settings
+                    : '${l10n.application} Review',
+                  initials: _adminInitials()),
                 Expanded(child: SingleChildScrollView(
                   child: _navIdx == 0
                       ? _buildOverviewContent()
-                      : _navIdx == 3
-                          ? const ProgrammesPage()
-                          : _navIdx == 4
-                              ? const DocumentsPage()
-                              : _navIdx == 5
-                                  ? const UsersStaffPage()
-                                  : _navIdx == 6
-                                      ? const NotificationsPage()
-                                      : _navIdx == 7
-                                          ? const AnnouncementsPage()
-                                          : _navIdx == 8
-                                              ? const InterviewsPage()
-                                              : _navIdx == 9
-                                                  ? const ReportsPage()
-                                                  : _navIdx == 10
-                                                      ? const AuditLogPage()
-                                                      : Padding(
+                      : _navIdx == 2
+                          ? const StudentsPage()
+                          : _navIdx == 3
+                              ? const ProgrammesPage()
+                              : _navIdx == 4
+                                  ? const DocumentsPage()
+                                  : _navIdx == 5
+                                      ? const UsersStaffPage()
+                                      : _navIdx == 6
+                                          ? const NotificationsPage()
+                                          : _navIdx == 7
+                                              ? const AnnouncementsPage()
+                                              : _navIdx == 8
+                                                  ? const InterviewsPage()
+                                                  : _navIdx == 9
+                                                      ? const ReportsPage()
+                                                      : _navIdx == 10
+                                                          ? const AuditLogPage()
+                                                          : _navIdx == 11
+                                                              ? const AdminSettingsPage()
+                                                              : Padding(
                               padding: const EdgeInsets.fromLTRB(22, 18, 22, 64),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -731,12 +860,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // ── page header ─────────────────────────────────────────────────────────────
   Widget _buildHeader() {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           RichText(text: TextSpan(children: [
-            TextSpan(text: 'Application',
+            TextSpan(text: l10n.application,
               style: GoogleFonts.dmSerifDisplay(
                 fontSize: 26, fontWeight: FontWeight.w900,
                 color: _kRed, fontStyle: FontStyle.italic, letterSpacing: -0.5)),
@@ -1005,12 +1135,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildOverviewHeader() {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           RichText(text: TextSpan(children: [
-            TextSpan(text: 'Dashboard',
+            TextSpan(text: l10n.dashboard,
               style: GoogleFonts.dmSerifDisplay(
                 fontSize: 26, fontWeight: FontWeight.w900,
                 color: _kRed, fontStyle: FontStyle.italic, letterSpacing: -0.5)),
@@ -1117,23 +1248,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 }
 
 // ── _Sidebar ──────────────────────────────────────────────────────────────────
-const _kSidebarGroups = [
+List<(String, List<(int, IconData, String, int?, Color?)>)> _buildSidebarGroups(AppLocalizations l10n) => [
   (
     'MAIN',
     <(int, IconData, String, int?, Color?)>[
-      (0,  Icons.grid_view_rounded,      'Overview',      null, null),
-      (1,  Icons.description_outlined,   'Applications',  247,  null),
-      (2,  Icons.people_outline_rounded, 'Students',      1204, null),
-      (3,  Icons.school_outlined,        'Programmes',    null, null),
-      (4,  Icons.folder_outlined,        'Documents',     12,   null),
-      (5,  Icons.manage_accounts_outlined,'Users / Staff', null, null),
+      (0,  Icons.grid_view_rounded,       'Overview',       null, null),
+      (1,  Icons.description_outlined,    'Applications',   247,  null),
+      (2,  Icons.people_outline_rounded,  'Students',       1204, null),
+      (3,  Icons.school_outlined,         'Programmes',     null, null),
+      (4,  Icons.folder_outlined,         l10n.documents,   12,   null),
+      (5,  Icons.manage_accounts_outlined,'Users / Staff',  null, null),
     ]
   ),
   (
     'TOOLS',
     <(int, IconData, String, int?, Color?)>[
-      (6,  Icons.notifications_outlined, 'Notifications', 5,    AppTheme.primaryCrimson),
-      (7,  Icons.campaign_outlined,      'Announcements', 3,    AppTheme.primaryCrimson),
+      (6,  Icons.notifications_outlined, l10n.notifications, 5,  AppTheme.primaryCrimson),
+      (7,  Icons.campaign_outlined,      l10n.announcements, 3,  AppTheme.primaryCrimson),
       (8,  Icons.event_outlined,         'Interviews',    null, null),
       (9,  Icons.bar_chart_rounded,      'Reports',       null, null),
       (10, Icons.shield_outlined,        'Audit Log',     null, null),
@@ -1142,8 +1273,8 @@ const _kSidebarGroups = [
   (
     'SYSTEM',
     <(int, IconData, String, int?, Color?)>[
-      (11, Icons.settings_outlined,      'Settings',      null, null),
-      (12, Icons.logout_rounded,         'Logout',        null, null),
+      (11, Icons.settings_outlined, l10n.settings, null, null),
+      (12, Icons.logout_rounded,    l10n.logout,   null, null),
     ]
   ),
 ];
@@ -1155,6 +1286,7 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sidebarGroups = _buildSidebarGroups(AppLocalizations.of(context)!);
     return Container(
       width: _kSidebarW,
       decoration: const BoxDecoration(
@@ -1201,7 +1333,7 @@ class _Sidebar extends StatelessWidget {
         Expanded(child: SingleChildScrollView(
           padding: const EdgeInsets.only(top: 14, bottom: 10),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            for (final group in _kSidebarGroups) ...[
+            for (final group in sidebarGroups) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 5),
                 child: Text(group.$1, style: GoogleFonts.dmSans(
@@ -1383,7 +1515,8 @@ class _SidebarBadge extends StatelessWidget {
 // ── _TopBar ───────────────────────────────────────────────────────────────────
 class _TopBar extends StatelessWidget {
   final String subtitle;
-  const _TopBar({this.subtitle = 'Application Review'});
+  final String initials;
+  const _TopBar({this.subtitle = 'Application Review', required this.initials});
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1426,7 +1559,7 @@ class _TopBar extends StatelessWidget {
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(colors: [_kRed, _kRedDeep])),
-          child: Center(child: Text('TM', style: GoogleFonts.dmSans(
+          child: Center(child: Text(initials, style: GoogleFonts.dmSans(
             fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white))),
         ),
       ]),
@@ -1667,12 +1800,10 @@ class _ActivityCard extends StatelessWidget {
           ...recentApps.asMap().entries.map((entry) {
             final i = entry.key;
             final app = entry.value;
-            final name = app['applicant_name'] as String? ?? 'Unknown';
-            final type = app['type'] as String? ?? '';
-            final status = app['status'] as String? ?? 'Pending';
-            final submittedAt = app['submitted_at'] != null
-                ? DateTime.tryParse(app['submitted_at'] as String)
-                : null;
+            final name = _s(app['applicant_name'], 'Unknown');
+            final type = _s(app['type']);
+            final status = _s(app['status'], 'Pending');
+            final submittedAt = DateTime.tryParse(_s(app['submitted_at']));
             final timeStr = submittedAt != null ? _timeAgo(submittedAt) : '';
             final dot = dotColors[status] ?? _kAmber;
             final isLast = i == recentApps.length - 1;
@@ -2746,7 +2877,7 @@ class _OvGeoCard extends StatelessWidget {
         else
           ...countries.map((c) {
             final name = c.$1;
-            final count = c.$2;
+            final _ = c.$2;
             final pct = c.$3;
             final flagColors = _flagColors[name.toLowerCase()] ?? _fallbackColors;
             return Padding(
@@ -2777,14 +2908,253 @@ class _OvGeoCard extends StatelessWidget {
                   ),
                 )),
                 const SizedBox(width: 8),
-                SizedBox(width: 28, child: Text('$count',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11, fontWeight: FontWeight.w500, color: _kDark),
-                  textAlign: TextAlign.right)),
-              ]),
+]),
             );
           }),
       ]),
+    );
+  }
+}
+
+// ── StudentsPage ───────────────────────────────────────────────────────────
+class StudentsPage extends StatefulWidget {
+  const StudentsPage({super.key});
+  @override
+  State<StudentsPage> createState() => _StudentsPageState();
+}
+
+class _StudentsPageState extends State<StudentsPage> {
+  List<Map<String, dynamic>> _students = [];
+  bool _loading = true;
+  StreamSubscription<List<Map<String, dynamic>>>? _streamSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _streamSub = SupabaseService.streamAllApplications().listen((apps) {
+      if (mounted) {
+        setState(() {
+          _students = apps.where((a) => a['status'] == 'Approved').toList();
+          _loading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _streamSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 64),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Students', style: GoogleFonts.dmSerifDisplay(
+            fontSize: 28, fontWeight: FontWeight.w900, color: _kDark)),
+          const SizedBox(height: 16),
+          if (_loading)
+            const Center(child: CircularProgressIndicator())
+          else if (_students.isEmpty)
+            Center(child: Text('No students yet', style: TextStyle(color: _kMuted)))
+          else
+            ..._students.map((s) => _StudentCard(student: s)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StudentCard extends StatelessWidget {
+  final Map<String, dynamic> student;
+  const _StudentCard({required this.student});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _kBorder),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(colors: [_kGreen, _kGreen.withValues(alpha: 0.7)])),
+          child: Center(child: Text(
+            (student['applicant_name'] as String? ?? '')[0].toUpperCase(),
+            style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(student['applicant_name'] as String? ?? '', style: GoogleFonts.dmSans(
+              fontSize: 16, fontWeight: FontWeight.w600, color: _kDark)),
+            Text(student['programme'] as String? ?? '', style: GoogleFonts.dmSans(
+              fontSize: 14, color: _kMuted)),
+          ],
+        )),
+        Text('Enrolled', style: GoogleFonts.dmSans(
+          fontSize: 12, color: _kGreen, fontWeight: FontWeight.w500)),
+      ]),
+    );
+  }
+}
+
+// ── AdminSettingsPage ─────────────────────────────────────────────────────────
+class AdminSettingsPage extends StatefulWidget {
+  const AdminSettingsPage({super.key});
+  @override
+  State<AdminSettingsPage> createState() => _AdminSettingsPageState();
+}
+
+class _AdminSettingsPageState extends State<AdminSettingsPage> {
+  bool _isDark = false;
+  String? _name, _email;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdminInfo();
+  }
+
+  Future<void> _loadAdminInfo() async {
+    final user = SupabaseService.currentUser;
+    setState(() {
+      _email = user?.email ?? '';
+      _name = user?.userMetadata?['full_name'] as String? ?? _adminDisplayName();
+    });
+  }
+
+  Future<void> _logout() async {
+    await SupabaseService.signOut();
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 64),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Settings', style: GoogleFonts.dmSerifDisplay(
+            fontSize: 28, fontWeight: FontWeight.w900, color: _kDark)),
+          const SizedBox(height: 24),
+          // Profile Section
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: _kBorder),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Profile', style: GoogleFonts.dmSans(
+                  fontSize: 16, fontWeight: FontWeight.w600, color: _kDark)),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Container(
+                    width: 48, height: 48,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(colors: [_kRed, _kRedDeep])),
+                    child: Center(child: Text(_adminInitials(), style: GoogleFonts.dmSans(
+                      fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_name ?? 'Loading...', style: GoogleFonts.dmSans(
+                        fontSize: 16, fontWeight: FontWeight.w500, color: _kDark)),
+                      Text(_email ?? '', style: GoogleFonts.dmSans(
+                        fontSize: 14, color: _kMuted)),
+                    ],
+                  )),
+                ]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Theme Toggle
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: _kBorder),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Appearance', style: GoogleFonts.dmSans(
+                  fontSize: 16, fontWeight: FontWeight.w600, color: _kDark)),
+                const SizedBox(height: 16),
+                Row(children: [
+                  const Icon(Icons.brightness_6, color: _kMuted),
+                  const SizedBox(width: 12),
+                  Text('Theme', style: GoogleFonts.dmSans(
+                    fontSize: 14, color: _kDark)),
+                  const Spacer(),
+                  Switch(
+                    value: _isDark,
+                    onChanged: (v) => setState(() => _isDark = v),
+                    activeThumbColor: _kRed,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(_isDark ? 'Dark' : 'Light', style: GoogleFonts.dmSans(
+                    fontSize: 14, color: _kMuted)),
+                ]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Logout
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: _kBorder),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Account', style: GoogleFonts.dmSans(
+                  fontSize: 16, fontWeight: FontWeight.w600, color: _kDark)),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: Text('Logout', style: GoogleFonts.dmSans(
+                    fontSize: 14, fontWeight: FontWeight.w500)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kRed,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:au_connect/services/export_csv.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/theme/app_theme.dart';
 
@@ -147,13 +145,12 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   void _downloadCsv(String csvContent, String filename) {
-    final bytes = utf8.encode(csvContent);
-    final blob = html.Blob([bytes], 'text/csv');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    html.AnchorElement(href: url)
-      ..setAttribute('download', filename)
-      ..click();
-    html.Url.revokeObjectUrl(url);
+    try {
+      ExportCsv.downloadCsv(csvContent, filename);
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CSV download is available on web only.')));
+    }
   }
 
   void _generateReport() {

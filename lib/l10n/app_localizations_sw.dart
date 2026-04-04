@@ -275,4 +275,151 @@ class AppLocalizationsSw extends AppLocalizations {
 
   @override
   String get retry => 'Jaribu tena';
+
+  @override
+  String get application => 'Ombi';
+
+  @override
+  String get visa => 'Visa';
+
+  @override
+  String get payments => 'Malipo';
+
+  @override
+  String get transport => 'Usafiri';
+
+  @override
+  String get home => 'Nyumbani';
+
+  @override
+  String get profile => 'Wasifu';
+
+  @override
+  String get settings => 'Mipangilio';
+
+  @override
+  String get helpAndSupport => 'Msaada & Usaidizi';
+
+  @override
+  String get myApplication => 'Ombi Langu';
+
+  @override
+  String get applicationFee => 'Ada ya Ombi';
+
+  @override
+  String get verified => 'Imethibitishwa';
+
+  @override
+  String get notVerified => 'Haijathibitishwa';
+
+  @override
+  String get complete => 'Imekamilika';
+
+  @override
+  String get incomplete => 'Haijafanyika';
+
+  @override
+  String get research => 'Utafiti';
+
+  @override
+  String get supervisor => 'Msimamizi';
+
+  @override
+  String get proposal => 'Pendekezo';
+
+  @override
+  String get academicRecords => 'Rekodi za Masomo';
+
+  @override
+  String get feeBalance => 'Salio la Ada';
+
+  @override
+  String get gpa => 'Wastani wa Alama';
+
+  @override
+  String get contactUs => 'Wasiliana Nasi';
+
+  @override
+  String get changeLanguage => 'Badilisha Lugha';
+
+  @override
+  String get applicationId => 'Nambari ya Ombi';
+
+  @override
+  String get programme => 'Programu';
+
+  @override
+  String get faculty => 'Kitivo';
+
+  @override
+  String get nationality => 'Utaifa';
+
+  @override
+  String get submit => 'Wasilisha';
+
+  @override
+  String get save => 'Hifadhi';
+
+  @override
+  String get close => 'Funga';
+
+  @override
+  String get confirm => 'Thibitisha';
+
+  @override
+  String get viewApplication => 'Angalia Ombi';
+
+  @override
+  String get trackApplication => 'Fuatilia Ombi';
+
+  @override
+  String get payFee => 'Lipa Ada';
+
+  @override
+  String get checkEligibility => 'Angalia Sifa';
+
+  @override
+  String get welcomeStudent => 'Karibu';
+
+  @override
+  String get submittedOn => 'Iliwasilishwa tarehe';
+
+  @override
+  String get noDataAvailable => 'Hakuna data inapatikana.';
+
+  @override
+  String get pleaseWait => 'Tafadhali subiri...';
+
+  @override
+  String get error => 'Hitilafu';
+
+  @override
+  String get success => 'Mafanikio';
+
+  @override
+  String get visaApplication => 'Ombi la Visa';
+
+  @override
+  String get financialAid => 'Msaada wa Fedha';
+
+  @override
+  String get accommodation => 'Makazi';
+
+  @override
+  String get fees => 'Ada';
+
+  @override
+  String get status => 'Hali';
+
+  @override
+  String get type => 'Aina';
+
+  @override
+  String get name => 'Jina';
+
+  @override
+  String get date => 'Tarehe';
+
+  @override
+  String get action => 'Kitendo';
 }

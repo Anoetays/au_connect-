@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// TODO: Set to false before production release.
+const _allowUnpaidSubmissionForTesting = true;
+
 /// Tracks which application steps are complete.
 /// Singleton — shared across all three applicant dashboards.
 class ApplicationState extends ChangeNotifier {
@@ -111,7 +114,7 @@ class ApplicationState extends ChangeNotifier {
         }
         break;
       case 4: // submit requires fee paid
-        if (!feePaid) {
+        if (!feePaid && !_allowUnpaidSubmissionForTesting) {
           message =
               'Please pay the application fee before submitting your application.';
         }

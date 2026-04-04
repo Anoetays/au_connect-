@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/services/anthropic_service.dart';
 import 'package:au_connect/services/application_state.dart';
+import 'package:au_connect/l10n/app_localizations.dart';
 import 'chatbot_dashboard_screen.dart';
 import 'personal_information_screen.dart';
 import 'document_upload_screen.dart';
@@ -13,6 +15,8 @@ import 'submit_application_screen.dart';
 import 'application_progress_screen.dart';
 import 'payment_history_screen.dart';
 import 'profile_settings_screen.dart';
+import 'applicant_announcements_screen.dart';
+import 'applicant_interviews_screen.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const _kBg      = Color(0xFFF8F7F5);
@@ -61,6 +65,14 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
 
   final _appState = ApplicationState.instance;
 
+  StreamSubscription<List<Map<String, dynamic>>>? _appStreamSub;
+
+  String _s(dynamic v, [String fallback = '']) {
+    if (v == null) return fallback;
+    final text = v.toString();
+    return text.isEmpty ? fallback : text;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +84,7 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
   @override
   void dispose() {
     _ctrl.dispose();
+    _appStreamSub?.cancel();
     super.dispose();
   }
 
@@ -88,7 +101,10 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
       final app = results[1];
       List<Map<String, dynamic>> docs = [];
       if (app != null) {
-        docs = await SupabaseService.getDocuments(app['id'] as String);
+        final appId = _s(app['id']);
+        if (appId.isNotEmpty) {
+          docs = await SupabaseService.getDocuments(appId);
+        }
       }
       if (!mounted) return;
       final profile = results[0];
@@ -98,6 +114,12 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
         _application = app;
         _documents = docs;
         _loading = false;
+      });
+      // Start streaming for real-time updates
+      _appStreamSub = SupabaseService.streamMyApplications().listen((apps) {
+        if (!mounted) return;
+        final app = apps.isNotEmpty ? apps.first : null;
+        setState(() => _application = app);
       });
       _ctrl.forward(from: 0);
     } catch (e) {
@@ -111,24 +133,26 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
 
   // ── computed ─────────────────────────────────────────────────────────────────
   String get _displayName {
-    final name = _profile?['full_name'] as String?;
-    if (name != null && name.isNotEmpty) return name.split(' ').first;
+    final username = _s(_profile?['username']);
+    if (username.isNotEmpty) return username;
+    final name = _s(_profile?['full_name']);
+    if (name.isNotEmpty) return name.split(' ').first;
     return SupabaseService.currentUser?.email?.split('@').first ?? 'Student';
   }
 
   String get _country =>
-      _profile?['country_of_origin'] as String? ?? 'Not Specified';
+      _s(_profile?['country_of_origin'], 'Not Specified');
 
   String get _status =>
-      _application?['status'] as String? ?? '';
+      _s(_application?['status']);
 
   bool get _passportVerified => _documents.any((d) =>
-      (d['document_type'] as String? ?? '').toLowerCase().contains('passport') &&
+      _s(d['document_type']).toLowerCase().contains('passport') &&
       d['verified'] == true);
 
   int get _docsUploaded {
     final uploaded = _documents
-        .map((d) => (d['document_type'] as String? ?? '').toLowerCase())
+        .map((d) => _s(d['document_type']).toLowerCase())
         .toSet();
     const keys = [
       'passport', 'transcript', 'ielts', 'medical', 'bank', 'birth', 'insurance'
@@ -214,12 +238,15 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
 
   // ── TOP NAV ──────────────────────────────────────────────────────────────────
   Widget _buildTopNav(BuildContext context, String initials) {
-    const navItems = [
-      (Icons.grid_view_rounded,         'Dashboard'),
-      (Icons.layers_outlined,           'Application Progress'),
-      (Icons.send_outlined,             'Travel & Visa'),
-      (Icons.credit_card_outlined,      'Payments'),
-      (Icons.directions_bus_outlined,   'Transport & Accommodation'),
+    final l10n = AppLocalizations.of(context)!;
+    final navItems = [
+      (Icons.grid_view_rounded,         l10n.dashboard),
+      (Icons.layers_outlined,           l10n.applicationProgress),
+      (Icons.send_outlined,             '${l10n.visa} & Travel'),
+      (Icons.credit_card_outlined,      l10n.payments),
+      (Icons.directions_bus_outlined,   '${l10n.transport} & ${l10n.accommodation}'),
+      (Icons.campaign_outlined,         l10n.announcements),
+      (Icons.event_outlined,          'Interviews'),
     ];
 
     return Container(
@@ -286,6 +313,26 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
                         );
                         return;
                       }
+                      // Announcements (5) → announcements screen
+                      if (i == 5) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ApplicantAnnouncementsScreen(),
+                          ),
+                        );
+                        return;
+                      }
+                      // Interviews (6) → interviews screen
+                      if (i == 6) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ApplicantInterviewsScreen(),
+                          ),
+                        );
+                        return;
+                      }
                       setState(() => _tab = i);
                     },
                   );
@@ -318,13 +365,13 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancel')),
+                          child: Text(AppLocalizations.of(ctx)!.cancel)),
                       ElevatedButton(
                           onPressed: () => Navigator.pop(ctx, true),
                           style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.primary,
                               foregroundColor: Colors.white),
-                          child: const Text('Log Out')),
+                          child: Text(AppLocalizations.of(ctx)!.logout)),
                     ],
                   ),
                 );
@@ -335,14 +382,14 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
                 }
               }
             },
-            itemBuilder: (_) => [
+            itemBuilder: (ctx) => [
               PopupMenuItem(
                 value: 'settings',
                 child: Row(children: [
                   const Icon(Icons.settings_outlined,
                       size: 16, color: AppTheme.textSecondary),
                   const SizedBox(width: 10),
-                  Text('Settings',
+                  Text(AppLocalizations.of(ctx)!.settings,
                       style: GoogleFonts.dmSans(fontSize: 13)),
                 ]),
               ),
@@ -352,7 +399,7 @@ class _InternationalDashboardState extends State<InternationalDashboardScreen>
                   const Icon(Icons.logout,
                       size: 16, color: AppTheme.primaryCrimson),
                   const SizedBox(width: 10),
-                  Text('Log Out',
+                  Text(AppLocalizations.of(ctx)!.logout,
                       style: GoogleFonts.dmSans(
                           fontSize: 13, color: AppTheme.primaryCrimson)),
                 ]),
@@ -820,8 +867,8 @@ class _HomeTabState extends State<_HomeTab> {
                               children: [
                                 Text(
                                   widget.application != null
-                                      ? 'Check Application Progress'
-                                      : 'Get Started',
+                                      ? 'Check ${AppLocalizations.of(context)!.applicationProgress}'
+                                      : AppLocalizations.of(context)!.getStarted,
                                   style: GoogleFonts.dmSans(
                                     fontSize: 13.5,
                                     fontWeight: FontWeight.w600,
@@ -868,7 +915,7 @@ class _HomeTabState extends State<_HomeTab> {
                                   ),
                                 ),
                                 Text(
-                                  'Complete',
+                                  AppLocalizations.of(context)!.complete,
                                   style: GoogleFonts.dmSans(
                                     fontSize: 9,
                                     color: Colors.white
@@ -882,7 +929,7 @@ class _HomeTabState extends State<_HomeTab> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Application Progress',
+                        AppLocalizations.of(context)!.applicationProgress,
                         style: GoogleFonts.dmSans(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.6),
@@ -1629,7 +1676,7 @@ class _ApplicationTab extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Application Progress',
+              Text(AppLocalizations.of(context)!.applicationProgress,
                   style: GoogleFonts.dmSerifDisplay(
                       fontSize: 28,
                       color: _kDark,

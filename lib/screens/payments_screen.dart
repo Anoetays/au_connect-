@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:au_connect/theme/app_theme.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:au_connect/services/supabase_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'package:au_connect/providers/application_form_provider.dart';
+import 'package:au_connect/services/application_state.dart';
+import 'package:au_connect/services/flutterwave_service.dart';
 import 'package:au_connect/services/payment_service.dart';
+import 'package:au_connect/services/supabase_service.dart';
+import 'package:au_connect/theme/app_theme.dart';
+
 import 'submit_application_screen.dart';
 
 // ─── color tokens ─────────────────────────────────────────────────────────────
@@ -23,18 +30,18 @@ const _kGreenBd      = Color(0xFFC2E8D4);
 const _kGreenFg      = Color(0xFF10B981);
 const _kGreenDk      = Color(0xFF065F46);
 
-class PaymentsScreen extends StatefulWidget {
+class PaymentsScreen extends ConsumerStatefulWidget {
   const PaymentsScreen({super.key, this.nextRoute});
   final WidgetBuilder? nextRoute;
 
   @override
-  State<PaymentsScreen> createState() => _PaymentsScreenState();
+  ConsumerState<PaymentsScreen> createState() => _PaymentsScreenState();
 }
 
-class _PaymentsScreenState extends State<PaymentsScreen>
+class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     with SingleTickerProviderStateMixin {
   int _selectedMethod = -1;
-  bool _processing = false;
+  final bool _processing = false;
   bool _overlayShowing = false;
   Map<String, dynamic>? _application;
   bool _loading = true;
@@ -643,7 +650,85 @@ class _PaymentsScreenState extends State<PaymentsScreen>
       _showEcoCashDialog();
       return;
     }
-    // Visa / Flutterwave — not yet implemented
+    if (_selectedMethod == 2) {
+      await _handleFlutterwavePayment();
+      return;
+    }
+    // Visa — not yet implemented
+  }
+
+  Future<void> _handleFlutterwavePayment() async {
+    final email = SupabaseService.currentUser?.email ?? '';
+    final name = _application?['full_name'] as String? ?? email.split('@').first;
+    final txRef = 'app_fee_${DateTime.now().millisecondsSinceEpoch}';
+
+    try {
+      final response = await FlutterwaveService().createCheckout(
+        txRef: txRef,
+        amount: _appFee,
+        currency: 'USD',
+        customerEmail: email,
+        customerName: name,
+      );
+
+      if (response.success && response.checkoutUrl != null) {
+        final url = Uri.parse(response.checkoutUrl!);
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+          // Show waiting dialog while user completes payment
+          _showFlutterwaveWaitingDialog(txRef);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not open payment page. Please try again.'),
+            backgroundColor: _kCrimson,
+          ));
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Payment setup failed: ${response.message}'),
+          backgroundColor: _kCrimson,
+        ));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Payment setup failed. Please try again.'),
+        backgroundColor: _kCrimson,
+      ));
+    }
+  }
+
+  void _showFlutterwaveWaitingDialog(String txRef) {
+    _overlayShowing = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _FlutterwaveWaitingDialog(
+        txRef: txRef,
+        onVerified: (success) async {
+          _dismissOverlay();
+          if (success) {
+            // Update application fee status in database
+            final appId = _application?['id'] as String?;
+            if (appId != null) {
+              try {
+                await SupabaseService.updateApplicationFeePaid(appId, true);
+                // Refresh application data
+                _loadData();
+              } catch (e) {
+                debugPrint('Failed to update fee status: $e');
+              }
+            }
+            _showPaymentSuccess();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Payment verification failed. Please contact support.'),
+              backgroundColor: _kCrimson,
+            ));
+            setState(() => _selectedMethod = -1);
+          }
+        },
+      ),
+    ).then((_) => _overlayShowing = false);
   }
 
   void _showEcoCashDialog() {
@@ -680,6 +765,53 @@ class _PaymentsScreenState extends State<PaymentsScreen>
     if (_overlayShowing && mounted) Navigator.of(context).pop();
   }
 
+  void _showPaymentSuccess() {
+    // Update the global provider with payment info
+    ref.read(applicationFormProvider.notifier).updatePaymentInfo(
+      PaymentInfo(
+        isPaid: true,
+        amount: _appFee,
+        method: _selectedMethod == 0 ? 'EcoCash' : _selectedMethod == 1 ? 'Visa/Master' : 'Flutterwave',
+        paidAt: DateTime.now(),
+      ),
+    );
+
+    ApplicationState.instance.setFeePaid(true);
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: _kGreenFg, size: 24),
+            const SizedBox(width: 8),
+            Text('Payment Successful',
+                style: GoogleFonts.cormorantGaramond(fontSize: 20, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        content: Text(
+          'Your application fee has been paid successfully. You can now proceed to submit your application.',
+          style: GoogleFonts.dmSans(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: widget.nextRoute ?? (_) => const SubmitApplicationScreen(),
+                ),
+              );
+            },
+            child: const Text('Continue to Submit'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _startPolling(String pollUrl) async {
     const maxAttempts = 12;
     const interval = Duration(seconds: 5);
@@ -697,6 +829,17 @@ class _PaymentsScreenState extends State<PaymentsScreen>
 
         if (paid || status == 'paid') {
           _dismissOverlay();
+          // Update application fee status in database
+          final appId = _application?['id'] as String?;
+          if (appId != null) {
+            try {
+              await SupabaseService.updateApplicationFeePaid(appId, true);
+              // Refresh application data
+              _loadData();
+            } catch (e) {
+              debugPrint('Failed to update fee status: $e');
+            }
+          }
           _showPaymentSuccess();
           return;
         }
@@ -721,79 +864,6 @@ class _PaymentsScreenState extends State<PaymentsScreen>
       backgroundColor: _kCrimson,
     ));
     setState(() => _selectedMethod = -1);
-  }
-
-  void _showPaymentSuccess() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: _kGreenFg.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_circle_rounded,
-                    color: _kGreenFg, size: 40),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Payment Successful!',
-                style: GoogleFonts.cormorantGaramond(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: _kInk,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Your application fee of \$${_appFee.toStringAsFixed(2)} has been received.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(
-                    fontSize: 14, color: _kMuted, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context); // close dialog
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: widget.nextRoute ?? (_) => const SubmitApplicationScreen(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kCrimson,
-                    foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text(
-                    'Done',
-                    style: GoogleFonts.dmSans(
-                        fontWeight: FontWeight.w500, fontSize: 15),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _showPaymentHistory(BuildContext context) {
@@ -1659,6 +1729,115 @@ class _WaitingDialog extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'Waiting for confirmation...',
+              style: GoogleFonts.dmSans(fontSize: 12, color: _kMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FlutterwaveWaitingDialog extends StatefulWidget {
+  const _FlutterwaveWaitingDialog({
+    required this.txRef,
+    required this.onVerified,
+  });
+
+  final String txRef;
+  final void Function(bool success) onVerified;
+
+  @override
+  State<_FlutterwaveWaitingDialog> createState() => _FlutterwaveWaitingDialogState();
+}
+
+class _FlutterwaveWaitingDialogState extends State<_FlutterwaveWaitingDialog> {
+  bool _verifying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startVerification();
+  }
+
+  Future<void> _startVerification() async {
+    setState(() => _verifying = true);
+
+    // Wait a bit for user to complete payment, then start polling
+    await Future.delayed(const Duration(seconds: 3));
+
+    const maxAttempts = 20;
+    const interval = Duration(seconds: 3);
+
+    for (int i = 0; i < maxAttempts; i++) {
+      if (!mounted) return;
+
+      try {
+        final response = await FlutterwaveService().verifyTransaction(txRef: widget.txRef);
+        if (!mounted) return;
+
+        if (response.success) {
+          widget.onVerified(true);
+          return;
+        }
+
+        // If not successful yet, wait and try again
+        if (response.status != 'successful') {
+          await Future.delayed(interval);
+          continue;
+        }
+      } catch (e) {
+        // Continue polling on error
+        await Future.delayed(interval);
+      }
+    }
+
+    // Timed out
+    if (mounted) {
+      widget.onVerified(false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: _kCrimson.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.payment_rounded,
+                  color: _kCrimson, size: 40),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Complete Payment',
+              style: GoogleFonts.cormorantGaramond(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                color: _kInk,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please complete the payment in your browser. This dialog will close automatically once payment is confirmed.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                  fontSize: 14, color: _kMuted, height: 1.5),
+            ),
+            const SizedBox(height: 28),
+            const CircularProgressIndicator(color: _kCrimson),
+            const SizedBox(height: 16),
+            Text(
+              _verifying ? 'Verifying payment...' : 'Preparing verification...',
               style: GoogleFonts.dmSans(fontSize: 12, color: _kMuted),
             ),
           ],

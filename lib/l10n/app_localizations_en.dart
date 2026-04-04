@@ -275,4 +275,151 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retry => 'Retry';
+
+  @override
+  String get application => 'Application';
+
+  @override
+  String get visa => 'Visa';
+
+  @override
+  String get payments => 'Payments';
+
+  @override
+  String get transport => 'Transport';
+
+  @override
+  String get home => 'Home';
+
+  @override
+  String get profile => 'Profile';
+
+  @override
+  String get settings => 'Settings';
+
+  @override
+  String get helpAndSupport => 'Help & Support';
+
+  @override
+  String get myApplication => 'My Application';
+
+  @override
+  String get applicationFee => 'Application Fee';
+
+  @override
+  String get verified => 'Verified';
+
+  @override
+  String get notVerified => 'Not Verified';
+
+  @override
+  String get complete => 'Complete';
+
+  @override
+  String get incomplete => 'Incomplete';
+
+  @override
+  String get research => 'Research';
+
+  @override
+  String get supervisor => 'Supervisor';
+
+  @override
+  String get proposal => 'Proposal';
+
+  @override
+  String get academicRecords => 'Academic Records';
+
+  @override
+  String get feeBalance => 'Fee Balance';
+
+  @override
+  String get gpa => 'GPA';
+
+  @override
+  String get contactUs => 'Contact Us';
+
+  @override
+  String get changeLanguage => 'Change Language';
+
+  @override
+  String get applicationId => 'Application ID';
+
+  @override
+  String get programme => 'Programme';
+
+  @override
+  String get faculty => 'Faculty';
+
+  @override
+  String get nationality => 'Nationality';
+
+  @override
+  String get submit => 'Submit';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get close => 'Close';
+
+  @override
+  String get confirm => 'Confirm';
+
+  @override
+  String get viewApplication => 'View Application';
+
+  @override
+  String get trackApplication => 'Track Application';
+
+  @override
+  String get payFee => 'Pay Fee';
+
+  @override
+  String get checkEligibility => 'Check Eligibility';
+
+  @override
+  String get welcomeStudent => 'Welcome';
+
+  @override
+  String get submittedOn => 'Submitted on';
+
+  @override
+  String get noDataAvailable => 'No data available.';
+
+  @override
+  String get pleaseWait => 'Please wait...';
+
+  @override
+  String get error => 'Error';
+
+  @override
+  String get success => 'Success';
+
+  @override
+  String get visaApplication => 'Visa Application';
+
+  @override
+  String get financialAid => 'Financial Aid';
+
+  @override
+  String get accommodation => 'Accommodation';
+
+  @override
+  String get fees => 'Fees';
+
+  @override
+  String get status => 'Status';
+
+  @override
+  String get type => 'Type';
+
+  @override
+  String get name => 'Name';
+
+  @override
+  String get date => 'Date';
+
+  @override
+  String get action => 'Action';
 }

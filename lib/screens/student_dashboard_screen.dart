@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/services/anthropic_service.dart';
 import 'chatbot_dashboard_screen.dart';
+import 'applicant_announcements_screen.dart';
+import 'applicant_interviews_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -21,10 +24,19 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   bool _loading = true;
   String? _error;
 
+  StreamSubscription<List<Map<String, dynamic>>>? _annStreamSub;
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    _setupAnnouncementsStreaming();
+  }
+
+  @override
+  void dispose() {
+    _annStreamSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -56,7 +68,23 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     }
   }
 
+  void _setupAnnouncementsStreaming() {
+    _annStreamSub = SupabaseService.streamAnnouncements('student').listen(
+      (announcements) {
+        if (!mounted) return;
+        setState(() {
+          _announcements = announcements;
+        });
+      },
+      onError: (error) {
+        debugPrint('Announcements stream error: $error');
+      },
+    );
+  }
+
   String get _displayName {
+    final username = _profile?['username'] as String?;
+    if (username != null && username.isNotEmpty) return username;
     final name = _profile?['full_name'] as String?;
     if (name != null && name.isNotEmpty) return name.split(' ').first;
     return SupabaseService.currentUser?.email?.split('@').first ?? 'Student';
@@ -131,6 +159,47 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         child: Container(color: const Color(0xFFE5E7EB), height: 1),
       ),
       actions: [
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert_rounded,
+              color: AppTheme.textMuted, size: 20),
+          onSelected: (value) {
+            if (value == 'announcements') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ApplicantAnnouncementsScreen()),
+              );
+            } else if (value == 'interviews') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ApplicantInterviewsScreen()),
+              );
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'announcements',
+              child: Row(
+                children: [
+                  Icon(Icons.campaign_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('Announcements'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'interviews',
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('Interviews'),
+                ],
+              ),
+            ),
+          ],
+        ),
         IconButton(
           icon: const Icon(Icons.language_rounded,
               color: AppTheme.textMuted, size: 20),

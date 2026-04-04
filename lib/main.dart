@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:au_connect/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,6 +13,10 @@ import 'package:au_connect/screens/applicant_sign_in_screen.dart';
 import 'package:au_connect/screens/student_sign_in_screen.dart';
 import 'package:au_connect/screens/applicant_sign_up_screen.dart';
 import 'package:au_connect/screens/applicant_type_selection_screen.dart';
+import 'package:au_connect/screens/login_screen.dart';
+import 'package:au_connect/screens/dashboard_screen.dart';
+import 'package:au_connect/screens/application_screen.dart';
+import 'package:au_connect/screens/admin_health_check_screen.dart';
 import 'package:au_connect/screens/chatbot_dashboard_screen.dart';
 import 'package:au_connect/screens/onboarding_dashboard_screen.dart';
 import 'package:au_connect/screens/masters_dashboard_screen.dart';
@@ -70,11 +76,29 @@ class AuConnectApp extends StatefulWidget {
 class _AuConnectAppState extends State<AuConnectApp>
     implements AppLocaleController {
   late Locale _locale;
+  late String _sessionUserId;
+  StreamSubscription<AuthState>? _authSub;
 
   @override
   void initState() {
     super.initState();
     _locale = widget.initialLocale ?? const Locale('en');
+    _sessionUserId = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
+    debugPrint('Current user ID: $_sessionUserId');
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((authState) {
+      final nextUserId = authState.session?.user.id ?? 'anon';
+      debugPrint('Current user ID: $nextUserId');
+      if (!mounted) return;
+      if (_sessionUserId != nextUserId) {
+        setState(() => _sessionUserId = nextUserId);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -84,20 +108,21 @@ class _AuConnectAppState extends State<AuConnectApp>
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'AU Connect',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light,
-      locale: _locale,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
+    return ProviderScope(
+      child: MaterialApp(
+        title: 'AU Connect',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.light,
+        locale: _locale,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
         Locale('en'),
         Locale('fr'),
         Locale('pt'),
@@ -106,6 +131,10 @@ class _AuConnectAppState extends State<AuConnectApp>
       initialRoute: widget.showLanguageSelection ? '/language' : '/',
       routes: {
         '/': (context) => const WelcomeScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/dashboard': (context) => const DashboardScreen(),
+        '/application': (context) => const ApplicationScreen(),
+        '/admin_health_check': (context) => const AdminHealthCheckScreen(),
         '/language': (context) => const LanguageSelectionScreen(),
         '/student_sign_in': (context) => const StudentSignInScreen(),
         '/applicant_sign_in': (context) => const ApplicantSignInScreen(),
@@ -135,6 +164,7 @@ class _AuConnectAppState extends State<AuConnectApp>
             const LanguageSelectionScreen(isChange: true),
         '/visa_application': (context) => const VisaApplicationScreen(),
       },
-    );
+    ),
+  );
   }
 }

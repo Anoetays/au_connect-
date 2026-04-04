@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,6 +17,8 @@ import 'submit_application_screen.dart';
 import 'application_progress_screen.dart';
 import 'payment_history_screen.dart';
 import 'profile_settings_screen.dart';
+import 'applicant_announcements_screen.dart';
+import 'applicant_interviews_screen.dart';
 
 class OnboardingDashboardScreen extends StatelessWidget {
   const OnboardingDashboardScreen({super.key});
@@ -45,17 +48,27 @@ class _OnboardingBodyState extends State<_OnboardingBody>
   final _appState = ApplicationState.instance;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  StreamSubscription<List<Map<String, dynamic>>>? _annStreamSub;
+
+  String _s(dynamic v, [String fallback = '']) {
+    if (v == null) return fallback;
+    final text = v.toString();
+    return text.isEmpty ? fallback : text;
+  }
+
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 1000));
     _loadData();
+    _setupAnnouncementsStreaming();
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _annStreamSub?.cancel();
     super.dispose();
   }
 
@@ -74,7 +87,10 @@ class _OnboardingBodyState extends State<_OnboardingBody>
       Map<String, dynamic>? app = results[1] as Map<String, dynamic>?;
       List<Map<String, dynamic>> docs = [];
       if (app != null) {
-        docs = await SupabaseService.getDocuments(app['id'] as String);
+        final appId = _s(app['id']);
+        if (appId.isNotEmpty) {
+          docs = await SupabaseService.getDocuments(appId);
+        }
       }
       if (!mounted) return;
       final profile = results[0] as Map<String, dynamic>?;
@@ -98,13 +114,27 @@ class _OnboardingBodyState extends State<_OnboardingBody>
     }
   }
 
+  void _setupAnnouncementsStreaming() {
+    _annStreamSub = SupabaseService.streamAnnouncements('applicant').listen(
+      (announcements) {
+        if (!mounted) return;
+        setState(() {
+          _announcements = announcements;
+        });
+      },
+      onError: (error) {
+        debugPrint('Announcements stream error: $error');
+      },
+    );
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  int get _completedSteps => _appState.completedSteps;
-
   String get _displayName {
-    final name = _profile?['full_name'] as String?;
-    if (name != null && name.isNotEmpty) return name.split(' ').first;
+    final username = _s(_profile?['username']);
+    if (username.isNotEmpty) return username;
+    final name = _s(_profile?['full_name']);
+    if (name.isNotEmpty) return name.split(' ').first;
     return SupabaseService.currentUser?.email?.split('@').first ?? 'there';
   }
 
@@ -232,8 +262,8 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
                         child: ApplicationStatusTracker(
-                          applicationId: _application!['id'] as String? ?? '',
-                          currentStatus: _application!['status'] as String? ?? 'Submitted',
+                          applicationId: _s(_application!['id']),
+                          currentStatus: _s(_application!['status'], 'Submitted'),
                         ),
                       ),
                     ),
@@ -488,6 +518,16 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                       );
                     },
                   ),
+                  _DrawerItem(
+                    icon: Icons.campaign_outlined,
+                    label: 'Announcements',
+                    onTap: () => _navigate(const ApplicantAnnouncementsScreen()),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.calendar_today_outlined,
+                    label: 'Interviews',
+                    onTap: () => _navigate(const ApplicantInterviewsScreen()),
+                  ),
                   const Divider(height: 1),
                   _DrawerItem(
                     icon: Icons.settings_outlined,
@@ -649,7 +689,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
   Widget _buildHeroBanner(AppLocalizations l10n) {
     final hasApplication = _application != null;
     final pct = hasApplication ? 100 : ((_appState.progress) * 100).round();
-    final hasProfile = (_profile?['full_name'] as String?) != null;
+    final hasProfile = _s(_profile?['full_name']).isNotEmpty;
 
     return AnimatedBuilder(
       animation: _stagger(0),
@@ -986,7 +1026,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                       color: AppTheme.primary,
                       letterSpacing: 1.5)),
               const SizedBox(height: 2),
-              Text(latest['title'] as String? ?? 'Announcement',
+                Text(_s(latest['title'], 'Announcement'),
                   style: const TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 13),
                   maxLines: 1,
@@ -1001,7 +1041,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
   // ── Offer letter banner ───────────────────────────────────────────────────
 
   Widget _buildOfferLetterBanner() {
-    final signedUrl = _offerLetter?['signed_url'] as String?;
+    final signedUrl = _s(_offerLetter?['signed_url']);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(20),
@@ -1047,7 +1087,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
         ),
         const SizedBox(width: 12),
         GestureDetector(
-          onTap: signedUrl != null
+          onTap: signedUrl.isNotEmpty
               ? () async {
                   final uri = Uri.tryParse(signedUrl);
                   if (uri != null && await canLaunchUrl(uri)) {
@@ -1163,8 +1203,8 @@ class _OnboardingBodyState extends State<_OnboardingBody>
           _ProfileRow(
             icon: '🏠',
             label: 'Home Province',
-            sub: hasProfile && (_profile?['county_state'] as String? ?? '').isNotEmpty
-                ? (_profile?['county_state'] as String)
+            sub: hasProfile && _s(_profile?['county_state']).isNotEmpty
+                ? _s(_profile?['county_state'])
                 : 'Not Specified',
             badgeText: hasProfile ? 'Set' : 'Unset',
             badgeType: hasProfile ? 'none' : 'none',

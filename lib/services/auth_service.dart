@@ -52,7 +52,11 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
+      final userId = _supabase.auth.currentUser?.id ?? 'none';
+      debugPrint('Signing out user ID: $userId');
+      _supabase.removeAllChannels();
       await _supabase.auth.signOut();
+      debugPrint('Signed out user ID: $userId');
     } catch (e) {
       debugPrint('Sign-out error: $e');
       rethrow;

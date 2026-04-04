@@ -1,10 +1,16 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'package:file_picker/file_picker.dart';
-import 'package:au_connect/theme/app_theme.dart';
-import 'package:au_connect/services/supabase_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'package:au_connect/models/document.dart';
+import 'package:au_connect/providers/application_form_provider.dart';
 import 'package:au_connect/services/application_state.dart';
+import 'package:au_connect/services/document_service.dart';
+import 'package:au_connect/theme/app_theme.dart';
+
 import 'select_program_screen.dart';
 
 // ─── color tokens ─────────────────────────────────────────────────────────────
@@ -16,6 +22,19 @@ const _kBorder       = AppTheme.border;
 const _kMuted        = AppTheme.textMuted;
 const _kGreen        = AppTheme.statusApproved;
 const _kGreenPale    = Color(0xFFEBF7F1);
+
+// ─── keyword hints used for wrong-document detection ──────────────────────────
+const _kDocKeywords = <String, List<String>>{
+  'transcript':   ['transcript', 'result', 'academic', 'grade', 'mark', 'school'],
+  'passport':     ['passport', 'travel', 'document'],
+  'birth':        ['birth', 'certificate', 'dob'],
+  'id':           ['id', 'identity', 'national'],
+  'visa':         ['visa', 'permit', 'immigration'],
+  'photo':        ['photo', 'picture', 'selfie', 'portrait'],
+  'medical':      ['medical', 'health', 'insurance'],
+  'reference':    ['reference', 'recommendation', 'letter'],
+  'statement':    ['statement', 'bank', 'finance', 'financial'],
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -29,21 +48,21 @@ class _DocEntry {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-class DocumentUploadScreen extends StatefulWidget {
+class DocumentUploadScreen extends ConsumerStatefulWidget {
   const DocumentUploadScreen({super.key, this.nextRoute});
   final WidgetBuilder? nextRoute;
 
   @override
-  State<DocumentUploadScreen> createState() => _DocumentUploadScreenState();
+  ConsumerState<DocumentUploadScreen> createState() => _DocumentUploadScreenState();
 }
 
-class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
+class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
   final List<_DocEntry> _entries = [];
 
   // Verification status from Supabase — keyed by document label
   final Map<String, String?> _verificationStatus = {};
   final Map<String, String?> _verificationNotes = {};
-  StreamSubscription<List<Map<String, dynamic>>>? _docSub;
+  StreamSubscription<List<Document>>? _docSub;
 
   bool _saving = false;
   bool _saved = false;
@@ -52,15 +71,13 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   void initState() {
     super.initState();
     _entries.add(_DocEntry()); // start with one card
-    _docSub = SupabaseService.streamMyDocuments().listen((rows) {
+    _docSub = DocumentService.streamMyDocuments().listen((rows) {
       if (!mounted) return;
       final statuses = <String, String?>{};
       final notes = <String, String?>{};
-      for (final r in rows) {
-        final docType =
-            r['document_type'] as String? ?? r['file_name'] as String? ?? '';
-        statuses[docType] = r['verification_status'] as String?;
-        notes[docType] = r['verification_note'] as String?;
+      for (final doc in rows) {
+        statuses[doc.documentType] = doc.verificationStatus;
+        notes[doc.documentType] = null;
       }
       setState(() {
         _verificationStatus
@@ -100,7 +117,96 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
-    setState(() => _entries[index].file = result.files.first);
+
+    final picked = result.files.first;
+
+    // ── validate file type ────────────────────────────────────────────────
+    final ext = (picked.extension ?? '').toLowerCase();
+    if (!['pdf', 'jpg', 'jpeg', 'png'].contains(ext)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Only PDF, JPG and PNG files are accepted. You selected: .$ext'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _entries[index].file = picked);
+
+    // ── warn if file name looks wrong for the label ───────────────────────
+    final label = _entries[index].labelCtrl.text.trim().toLowerCase();
+    if (label.isNotEmpty) {
+      _checkDocumentMismatch(index, label, picked.name.toLowerCase());
+    }
+  }
+
+  /// Heuristic: if the file name contains keywords that contradict the label,
+  /// show a warning dialog.
+  void _checkDocumentMismatch(int index, String label, String fileName) {
+    // Find which category the label belongs to
+    String? labelCategory;
+    for (final entry in _kDocKeywords.entries) {
+      if (entry.value.any((kw) => label.contains(kw))) {
+        labelCategory = entry.key;
+        break;
+      }
+    }
+    if (labelCategory == null) return; // unknown category — skip check
+
+    // Find which category the file name belongs to
+    String? fileCategory;
+    for (final entry in _kDocKeywords.entries) {
+      if (entry.value.any((kw) => fileName.contains(kw))) {
+        fileCategory = entry.key;
+        break;
+      }
+    }
+    if (fileCategory == null || fileCategory == labelCategory) return;
+
+    // Mismatch detected
+    final friendlyLabel =
+        _entries[index].labelCtrl.text.trim().isEmpty ? 'this slot' : '"${_entries[index].labelCtrl.text.trim()}"';
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  color: Colors.orange.shade700, size: 22),
+              const SizedBox(width: 8),
+              const Text('Wrong Document?'),
+            ],
+          ),
+          content: Text(
+            'The file "${_entries[index].file!.name}" doesn\'t appear to match $friendlyLabel.\n\n'
+            'Please make sure you\'re uploading the correct document.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Keep It'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _kCrimsonLight,
+                  foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() => _entries[index].file = null);
+              },
+              child: const Text('Remove & Re-upload'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   bool _validate() {
@@ -120,24 +226,67 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     if (!_validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Each document card needs a label and a selected file.')),
+            content: Text(
+                'Each document card needs a label and a selected file.')),
       );
       return;
     }
 
     setState(() => _saving = true);
+
+    final errors = <String>[];
+    final uploadedDocuments = <UploadedDocument>[];
+
     for (final e in _entries) {
-      await SupabaseService.uploadDocument(
-        fileName: e.file!.name,
-        documentType: e.labelCtrl.text.trim(),
+      try {
+        final url = await DocumentService.uploadDocument(
+          fileName: e.file!.name,
+          documentType: e.labelCtrl.text.trim(),
+          fileBytes: e.file!.bytes,
+        ).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException(
+              'Upload timed out for "${e.file!.name}". Please try again.'),
+        );
+
+        if (url != null) {
+          uploadedDocuments.add(UploadedDocument(
+            type: e.labelCtrl.text.trim(),
+            fileName: e.file!.name,
+            url: url,
+            uploadedAt: DateTime.now(),
+          ));
+        }
+      } catch (err) {
+        errors.add('${e.labelCtrl.text.trim()}: $err');
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (errors.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Some documents failed to upload:\n${errors.join('\n')}'),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } else {
+      // Update the global provider with uploaded documents
+      ref.read(applicationFormProvider.notifier).updateDocuments(uploadedDocuments);
+
+      ApplicationState.instance.setDocumentsUploaded(true);
+      setState(() => _saved = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Documents saved successfully.'),
+          backgroundColor: Colors.green,
+        ),
       );
     }
-    ApplicationState.instance.setDocumentsUploaded(true);
-    if (!mounted) return;
-    setState(() { _saving = false; _saved = true; });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Documents saved successfully.')),
-    );
   }
 
   void _goNext() {
@@ -228,9 +377,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Add document cards below. Each card needs a label and a file.',
-                style:
-                    GoogleFonts.dmSans(fontSize: 14, color: _kMuted),
+                'Add document cards below. Each card needs a label and a file (PDF, JPG or PNG).',
+                style: GoogleFonts.dmSans(fontSize: 14, color: _kMuted),
               ),
               const SizedBox(height: 28),
 
@@ -277,15 +425,24 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white)))
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(_saved ? Icons.check_circle_outline : Icons.save_outlined, size: 18),
+                            Icon(
+                              _saved
+                                  ? Icons.check_circle_outline
+                                  : Icons.save_outlined,
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
                             Text(
-                              _saved ? 'Documents Saved' : 'Save Documents',
-                              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 15),
+                              _saved
+                                  ? 'Documents Saved'
+                                  : 'Save Documents',
+                              style: GoogleFonts.dmSans(
+                                  fontWeight: FontWeight.w700, fontSize: 15),
                             ),
                           ],
                         ),
@@ -301,7 +458,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   onPressed: _goNext,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _kCrimsonLight,
-                    side: const BorderSide(color: _kCrimsonLight, width: 1.5),
+                    side: const BorderSide(
+                        color: _kCrimsonLight, width: 1.5),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -310,7 +468,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     children: [
                       Text(
                         'Next: Select Programme',
-                        style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 15),
+                        style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.w700, fontSize: 15),
                       ),
                       const SizedBox(width: 8),
                       const Icon(Icons.arrow_forward, size: 18),
@@ -350,8 +509,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: _kParchment,
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
               border: Border(bottom: BorderSide(color: _kBorder)),
             ),
             child: Row(
@@ -407,11 +566,13 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _kBorder),
+                      borderSide:
+                          const BorderSide(color: _kBorder),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _kBorder),
+                      borderSide:
+                          const BorderSide(color: _kBorder),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -455,7 +616,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                               ? Icons.check_circle_outline
                               : Icons.upload_file_outlined,
                           size: 18,
-                          color: entry.file != null ? _kGreen : _kMuted,
+                          color: entry.file != null
+                              ? _kGreen
+                              : _kMuted,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -506,7 +669,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
   Widget _buildVerifChip(String status, String? note) {
     final isVerified =
-        status.toLowerCase() == 'verified' || status.toLowerCase() == 'approved';
+        status.toLowerCase() == 'verified' ||
+        status.toLowerCase() == 'approved';
     final isRejected = status.toLowerCase() == 'rejected';
 
     Color bg, fg;
@@ -527,7 +691,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
@@ -547,7 +712,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
             Expanded(
               child: Text(
                 '· $note',
-                style: GoogleFonts.dmSans(fontSize: 11, color: _kMuted),
+                style: GoogleFonts.dmSans(
+                    fontSize: 11, color: _kMuted),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

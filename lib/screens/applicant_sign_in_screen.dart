@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/auth_service.dart';
+import 'package:au_connect/services/app_navigation_service.dart';
+import 'package:au_connect/services/profile_service.dart';
 
 class ApplicantSignInScreen extends StatefulWidget {
   const ApplicantSignInScreen({super.key});
@@ -125,7 +127,11 @@ class _ApplicantSignInScreenState extends State<ApplicantSignInScreen>
         _passwordCtrl.text.trim(),
       );
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/applicant_type_selection');
+        final profile = await ProfileService.getMyProfile();
+        final routeName = AppNavigationService.dashboardRouteForApplicantProfile(
+          profile?.applicantType ?? 'Local',
+        );
+        Navigator.pushReplacementNamed(context, routeName);
       }
     } on AuthException catch (e) {
       if (mounted) {

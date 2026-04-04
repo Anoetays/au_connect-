@@ -277,4 +277,151 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get retry => 'Tentar novamente';
+
+  @override
+  String get application => 'Candidatura';
+
+  @override
+  String get visa => 'Visto';
+
+  @override
+  String get payments => 'Pagamentos';
+
+  @override
+  String get transport => 'Transporte';
+
+  @override
+  String get home => 'Início';
+
+  @override
+  String get profile => 'Perfil';
+
+  @override
+  String get settings => 'Configurações';
+
+  @override
+  String get helpAndSupport => 'Ajuda & Suporte';
+
+  @override
+  String get myApplication => 'Minha Candidatura';
+
+  @override
+  String get applicationFee => 'Taxa de candidatura';
+
+  @override
+  String get verified => 'Verificado';
+
+  @override
+  String get notVerified => 'Não verificado';
+
+  @override
+  String get complete => 'Completo';
+
+  @override
+  String get incomplete => 'Incompleto';
+
+  @override
+  String get research => 'Pesquisa';
+
+  @override
+  String get supervisor => 'Orientador';
+
+  @override
+  String get proposal => 'Proposta';
+
+  @override
+  String get academicRecords => 'Registos académicos';
+
+  @override
+  String get feeBalance => 'Saldo de propinas';
+
+  @override
+  String get gpa => 'Média';
+
+  @override
+  String get contactUs => 'Contacte-nos';
+
+  @override
+  String get changeLanguage => 'Mudar idioma';
+
+  @override
+  String get applicationId => 'ID de candidatura';
+
+  @override
+  String get programme => 'Programa';
+
+  @override
+  String get faculty => 'Faculdade';
+
+  @override
+  String get nationality => 'Nacionalidade';
+
+  @override
+  String get submit => 'Submeter';
+
+  @override
+  String get save => 'Guardar';
+
+  @override
+  String get close => 'Fechar';
+
+  @override
+  String get confirm => 'Confirmar';
+
+  @override
+  String get viewApplication => 'Ver candidatura';
+
+  @override
+  String get trackApplication => 'Acompanhar candidatura';
+
+  @override
+  String get payFee => 'Pagar taxa';
+
+  @override
+  String get checkEligibility => 'Verificar elegibilidade';
+
+  @override
+  String get welcomeStudent => 'Bem-vindo';
+
+  @override
+  String get submittedOn => 'Submetido em';
+
+  @override
+  String get noDataAvailable => 'Sem dados disponíveis.';
+
+  @override
+  String get pleaseWait => 'Por favor aguarde...';
+
+  @override
+  String get error => 'Erro';
+
+  @override
+  String get success => 'Sucesso';
+
+  @override
+  String get visaApplication => 'Pedido de visto';
+
+  @override
+  String get financialAid => 'Apoio financeiro';
+
+  @override
+  String get accommodation => 'Alojamento';
+
+  @override
+  String get fees => 'Propinas';
+
+  @override
+  String get status => 'Estado';
+
+  @override
+  String get type => 'Tipo';
+
+  @override
+  String get name => 'Nome';
+
+  @override
+  String get date => 'Data';
+
+  @override
+  String get action => 'Ação';
 }

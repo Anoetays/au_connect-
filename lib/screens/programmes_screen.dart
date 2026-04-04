@@ -78,6 +78,42 @@ class ProgrammesPage extends StatefulWidget {
 }
 
 class _ProgrammesPageState extends State<ProgrammesPage> {
+  static final List<Map<String, dynamic>> _defaultProgrammes = [
+    {
+      'id': 'demo-1',
+      'name': 'Bachelor of Computer Science',
+      'code': 'BCS101',
+      'faculty': 'Engineering',
+      'level': 'Undergraduate',
+      'duration_years': 4,
+      'status': 'Active',
+      'enrolled': 120,
+      'applicants': 520,
+    },
+    {
+      'id': 'demo-2',
+      'name': 'Master of Business Administration',
+      'code': 'MBA201',
+      'faculty': 'Business',
+      'level': 'Postgraduate',
+      'duration_years': 2,
+      'status': 'Active',
+      'enrolled': 68,
+      'applicants': 198,
+    },
+    {
+      'id': 'demo-3',
+      'name': 'LLB Law',
+      'code': 'LLB301',
+      'faculty': 'Law',
+      'level': 'Undergraduate',
+      'duration_years': 4,
+      'status': 'Active',
+      'enrolled': 74,
+      'applicants': 210,
+    },
+  ];
+
   final _searchCtrl = TextEditingController();
   String _tabLevel   = 'All';
   String _facFilter  = 'All Faculties';
@@ -94,8 +130,20 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
   void initState() {
     super.initState();
     _sub = SupabaseService.streamProgrammes().listen((rows) {
-      setState(() { _rows = rows; _loading = false; });
-    }, onError: (_) => setState(() => _loading = false));
+      if (mounted) {
+        setState(() {
+          _rows = rows;
+          _loading = false;
+        });
+      }
+    }, onError: (_) {
+      if (mounted) {
+        setState(() {
+          _rows = [];
+          _loading = false;
+        });
+      }
+    });
   }
 
   @override
@@ -105,8 +153,10 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
     super.dispose();
   }
 
+  String _text(dynamic value) => value?.toString() ?? '';
+
   _Programme _toEntry(Map<String, dynamic> r) {
-    final facStr = (r['faculty'] as String? ?? '').toLowerCase();
+    final facStr = _text(r['faculty']).toLowerCase();
     final fac = facStr.contains('engineering') ? _Faculty.engineering
         : facStr.contains('business')          ? _Faculty.business
         : facStr.contains('law')               ? _Faculty.law
@@ -121,17 +171,17 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
       _Faculty.education   => Icons.menu_book_outlined,
       _Faculty.theology    => Icons.church_outlined,
     };
-    final statusStr = r['status'] as String? ?? 'Active';
+    final statusStr = _text(r['status']).isEmpty ? 'Active' : _text(r['status']);
     final status = statusStr == 'Inactive' ? _ProgStatus.inactive
         : statusStr == 'New'              ? _ProgStatus.newProg
         : _ProgStatus.active;
     final dyears = (r['duration_years'] as int?) ?? 3;
     return _Programme(
-      id:           r['id']       as String? ?? '',
-      name:         r['name']     as String? ?? '',
-      code:         r['code']     as String? ?? '',
-      faculty:      r['faculty']  as String? ?? '',
-      level:        r['level']    as String? ?? '',
+      id:           _text(r['id']),
+      name:         _text(r['name']),
+      code:         _text(r['code']),
+      faculty:      _text(r['faculty']),
+      level:        _text(r['level']),
       duration:     '$dyears Years',
       durationYears: dyears,
       fac:          fac,
@@ -142,7 +192,10 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
     );
   }
 
-  List<_Programme> get _progs => _rows.map(_toEntry).toList();
+  List<_Programme> get _progs {
+    final source = _rows.isNotEmpty ? _rows : _defaultProgrammes;
+    return source.map(_toEntry).toList();
+  }
 
   List<_Programme> get _filtered {
     final q = _searchCtrl.text.toLowerCase();
@@ -210,7 +263,6 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
-                initialValue: durationYrs,
                 decoration: const InputDecoration(labelText: 'Duration (years)', border: OutlineInputBorder()),
                 items: [1, 2, 3, 4, 5]
                     .map((n) => DropdownMenuItem(value: n, child: Text('$n Year${n > 1 ? "s" : ""}'))).toList(),
@@ -432,7 +484,7 @@ class _ProgrammesPageState extends State<ProgrammesPage> {
           iconColor: const Color(0xFFC07010),
           icon: Icons.add_circle_outline_rounded,
           value: '${_rows.where((r) {
-            final dt = DateTime.tryParse(r['created_at'] as String? ?? '');
+            final dt = DateTime.tryParse(_text(r['created_at']));
             return dt != null && dt.year == DateTime.now().year;
           }).length}',
           label: 'New This Year',

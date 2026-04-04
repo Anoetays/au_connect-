@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -5,6 +7,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// All methods are static — no instance needed.
 class SupabaseService {
   static SupabaseClient get _db => Supabase.instance.client;
+  static final Random _random = Random.secure();
+
+  static bool _isMissingDocumentsTable(Object error) {
+    if (error is! PostgrestException) return false;
+    final msg = error.message.toLowerCase();
+    return error.code == 'PGRST205' && msg.contains('public.documents');
+  }
+
+  static String _generateApplicantId() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final token = List.generate(6, (_) => chars[_random.nextInt(chars.length)]).join();
+    final timestamp = DateTime.now().toUtc().millisecondsSinceEpoch;
+    return 'AU-$timestamp-$token';
+  }
 
   // ── AUTH ────────────────────────────────────────────────────────────────────
 
@@ -14,7 +30,13 @@ class SupabaseService {
   static Stream<AuthState> get authStateChanges =>
       _db.auth.onAuthStateChange;
 
-  static Future<void> signOut() => _db.auth.signOut();
+  static Future<void> signOut() async {
+    final userId = _db.auth.currentUser?.id ?? 'none';
+    debugPrint('Signing out user ID: $userId');
+    _db.removeAllChannels();
+    await _db.auth.signOut();
+    debugPrint('Signed out user ID: $userId');
+  }
 
   // ── PROFILES ─────────────────────────────────────────────────────────────────
 
@@ -63,18 +85,17 @@ class SupabaseService {
     required String programme,
     required String faculty,
     required String nationality,
+    String? phone,
+    String? source,
   }) async {
     final uid = currentUserId;
     if (uid == null) throw Exception('Not authenticated');
 
-    // Count existing rows to derive the next sequential number.
-    final existing = await _db.from('applications').select('id');
-    final n = ((existing as List).length + 1).toString().padLeft(4, '0');
-    final applicantId = 'AU-2025-$n';
+    final applicantId = _generateApplicantId();
     final now = DateTime.now().toIso8601String();
 
-    await _db.from('applications').insert({
-      'applicant_id': applicantId,
+    final payload = <String, dynamic>{
+      'application_code': applicantId,
       'applicant_name': applicantName,
       'email': email,
       'type': type,
@@ -84,7 +105,11 @@ class SupabaseService {
       'status': 'Pending',
       'user_id': uid,
       'submitted_at': now,
-    });
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (source != null && source.isNotEmpty) 'source': source,
+    };
+
+    await _db.from('applications').insert(payload);
 
     return applicantId;
   }
@@ -232,6 +257,17 @@ class SupabaseService {
     }
   }
 
+  /// Update the fee payment status of an application.
+  static Future<void> updateApplicationFeePaid(
+    String applicationId,
+    bool paid,
+  ) async {
+    await _db.from('applications').update({
+      'application_fee_paid': paid,
+      'fee_paid_at': paid ? DateTime.now().toIso8601String() : null,
+    }).eq('id', applicationId);
+  }
+
   /// Real-time stream of the current user's applications.
   static Stream<List<Map<String, dynamic>>> streamMyApplications() {
     final uid = currentUserId;
@@ -269,36 +305,84 @@ class SupabaseService {
     }
   }
 
-  /// Upload a document record for the current user's application.
-  /// Stores the file_name and document_type in the documents table.
-  /// If a local file path is provided and Supabase Storage is configured,
-  /// the bytes are uploaded; otherwise only the metadata row is inserted.
-  static Future<void> uploadDocument({
+  /// Upload a document file to Supabase Storage, then save its record to the
+  /// documents table.  Throws on any error so the caller can surface it.
+  static Future<String?> uploadDocument({
     required String fileName,
     required String documentType,
+    List<int>? fileBytes,
+    String? applicationId,
   }) async {
     final uid = currentUserId;
     if (uid == null) throw Exception('Not authenticated');
 
+    String? storageUrl;
+
+    // ── 1. Upload bytes to Supabase Storage (if provided) ──────────────────
+    if (fileBytes != null && fileBytes.isNotEmpty) {
+      try {
+        final ext = fileName.contains('.')
+            ? fileName.split('.').last.toLowerCase()
+            : 'bin';
+        final storagePath = 'documents/$uid/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
+        await _db.storage
+            .from('applicant-documents')
+            .uploadBinary(
+              storagePath,
+              Uint8List.fromList(fileBytes),
+              fileOptions: FileOptions(
+                contentType: _mimeForExt(ext),
+                upsert: true,
+              ),
+            )
+            .timeout(const Duration(seconds: 30));
+
+        storageUrl = _db.storage
+            .from('applicant-documents')
+            .getPublicUrl(storagePath);
+      } catch (e) {
+        debugPrint('Storage upload error: $e');
+        // Re-throw storage errors so the UI can show them
+        rethrow;
+      }
+    }
+
+    // ── 2. Save metadata row to documents table ────────────────────────────
+    final app = applicationId != null ? {'id': applicationId} : await getMyApplication();
+
+    final payload = <String, dynamic>{
+      'user_id': uid,
+      'file_name': fileName,
+      'document_type': documentType,
+      'verification_status': 'pending_review',
+      'status': 'Pending',
+      'uploaded_at': DateTime.now().toIso8601String(),
+      if (storageUrl != null) 'file_url': storageUrl,
+    };
+    if (app != null) payload['application_id'] = app['id'];
+
     try {
-      // Fetch the current application to get its ID
-      final app = await getMyApplication();
-
-      final payload = <String, dynamic>{
-        'user_id': uid,
-        'file_name': fileName,
-        'document_type': documentType,
-        'verification_status': 'Pending',
-        'status': 'Pending',
-        'uploaded_at': DateTime.now().toIso8601String(),
-      };
-      if (app != null) payload['application_id'] = app['id'];
-
       await _db.from('documents').insert(payload);
-    } catch (e) {
-      // Log but don't rethrow — DB record is best-effort;
-      // the user must still be able to proceed.
-      debugPrint('uploadDocument DB error (non-fatal): $e');
+    } on PostgrestException catch (e) {
+      if (_isMissingDocumentsTable(e)) {
+        throw Exception(
+          'Failed to save document metadata: database table public.documents is missing. '
+          'Run migration supabase/migrations/20260404_fix_missing_documents_and_applicant_id.sql',
+        );
+      }
+      rethrow;
+    }
+    return storageUrl;
+  }
+
+  static String _mimeForExt(String ext) {
+    switch (ext) {
+      case 'pdf':  return 'application/pdf';
+      case 'jpg':
+      case 'jpeg': return 'image/jpeg';
+      case 'png':  return 'image/png';
+      default:     return 'application/octet-stream';
     }
   }
 
@@ -479,13 +563,24 @@ class SupabaseService {
     required String level,
     required int durationYears,
   }) async {
-    await _db.from('programmes').insert({
-      'name': name,
-      'faculty': faculty,
-      'level': level,
-      'duration_years': durationYears,
-      'status': 'Active',
-    });
+    try {
+      await _db.rpc('admin_insert_programme', params: {
+        'p_name': name,
+        'p_faculty': faculty,
+        'p_level': level,
+        'p_duration_years': durationYears,
+        'p_status': 'Active',
+      });
+    } catch (_) {
+      // Backward compatibility if RPC is not yet deployed.
+      await _db.from('programmes').insert({
+        'name': name,
+        'faculty': faculty,
+        'level': level,
+        'duration_years': durationYears,
+        'status': 'Active',
+      });
+    }
   }
 
   /// Update an existing programme row.
@@ -551,6 +646,17 @@ class SupabaseService {
         .from('interviews')
         .update({'status': status})
         .eq('id', interviewId);
+  }
+
+  /// Real-time stream of current user's interviews.
+  static Stream<List<Map<String, dynamic>>> streamMyInterviews() {
+    final uid = currentUserId;
+    if (uid == null) return const Stream.empty();
+    return _db
+        .from('interviews')
+        .stream(primaryKey: ['id'])
+        .eq('applicant_id', uid)
+        .order('scheduled_date', ascending: true);
   }
 
   // ── ADMIN ANNOUNCEMENTS ───────────────────────────────────────────────────────

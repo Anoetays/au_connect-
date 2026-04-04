@@ -78,16 +78,18 @@ class _DocumentsPageState extends State<DocumentsPage> {
     super.dispose();
   }
 
+  String _text(dynamic value) => value?.toString() ?? '';
+
   // Map a Supabase row to the local display model.
   _DocEntry _toEntry(Map<String, dynamic> r) {
-    final statusStr = (r['status'] as String? ?? 'Pending');
+    final statusStr = _text(r['status']).isEmpty ? 'Pending' : _text(r['status']);
     final status = switch (statusStr) {
       'Verified'     => _DocStatus.verified,
       'Rejected'     => _DocStatus.rejected,
       'Under Review' => _DocStatus.underReview,
       _              => _DocStatus.pending,
     };
-    final fileName = r['file_name'] as String? ?? '';
+    final fileName = _text(r['file_name']);
     final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : 'FILE';
     final fileType = switch (ext) {
       'PDF'                         => _FileType.pdf,
@@ -95,10 +97,10 @@ class _DocumentsPageState extends State<DocumentsPage> {
       'DOC' || 'DOCX'               => _FileType.word,
       _                             => _FileType.pdf,
     };
-    final uploaded = r['uploaded_at'] as String?;
+    final uploaded = _text(r['uploaded_at']);
     String uploadedDate = '';
     String timeAgo = '';
-    if (uploaded != null) {
+    if (uploaded.isNotEmpty) {
       final dt = DateTime.tryParse(uploaded)?.toLocal();
       if (dt != null) {
         const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -111,17 +113,17 @@ class _DocumentsPageState extends State<DocumentsPage> {
     }
     return _DocEntry(
       fileName: fileName,
-      fileSize: r['file_size'] as String? ?? '',
+      fileSize: _text(r['file_size']),
       fileExt: ext,
-      applicantName: r['applicant_name'] as String? ?? '',
-      applicantId: r['applicant_id'] as String? ?? '',
-      docType: r['document_type'] as String? ?? '',
-      applicantType: r['nationality_type'] as String? ?? '',
+      applicantName: _text(r['applicant_name']),
+      applicantId: _text(r['applicant_id']),
+      docType: _text(r['document_type']),
+      applicantType: _text(r['nationality_type']),
       uploadedDate: uploadedDate,
       timeAgo: timeAgo,
       status: status,
       fileType: fileType,
-      id: r['id'] as String? ?? '',
+      id: _text(r['id']),
     );
   }
 

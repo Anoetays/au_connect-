@@ -3,9 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/services/anthropic_service.dart';
+import 'package:au_connect/l10n/app_localizations.dart';
 import 'chatbot_dashboard_screen.dart';
 import 'application_status_screen.dart';
 import 'document_upload_screen.dart';
+import 'applicant_announcements_screen.dart';
+import 'applicant_interviews_screen.dart';
 
 // ─── colours ────────────────────────────────────────────────────────────────
 const _kBg      = AppTheme.background;
@@ -92,6 +95,8 @@ class _ReturnBodyState extends State<_ReturnBody>
 
   // ── computed ──────────────────────────────────────────────────────────────
   String get _displayName {
+    final username = _profile?['username'] as String?;
+    if (username != null && username.isNotEmpty) return username;
     final name = _profile?['full_name'] as String?;
     if (name != null && name.isNotEmpty) return name.split(' ').first;
     return SupabaseService.currentUser?.email?.split('@').first ?? 'Student';
@@ -189,6 +194,7 @@ class _ReturnBodyState extends State<_ReturnBody>
 
   // ── TOP NAV ───────────────────────────────────────────────────────────────
   Widget _buildTopNav(BuildContext context, String initials) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       margin: const EdgeInsets.only(top: 3),
       height: 52,
@@ -226,20 +232,20 @@ class _ReturnBodyState extends State<_ReturnBody>
               child: Row(
                 children: [
                   _NavLink(
-                    label: 'Dashboard',
+                    label: l10n.dashboard,
                     active: true,
                     icon: const Icon(Icons.grid_view_rounded, size: 13),
                   ),
                   _NavLink(
-                    label: 'Academic Records',
+                    label: l10n.academicRecords,
                     icon: const Icon(Icons.description_outlined, size: 13),
                     onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Academic Records – coming soon')),
+                      SnackBar(
+                          content: Text('${l10n.academicRecords} – coming soon')),
                     ),
                   ),
                   _NavLink(
-                    label: 'Application Progress',
+                    label: l10n.applicationProgress,
                     icon: const Icon(Icons.show_chart_rounded, size: 13),
                     onTap: () => Navigator.push(
                       context,
@@ -248,17 +254,35 @@ class _ReturnBodyState extends State<_ReturnBody>
                     ),
                   ),
                   _NavLink(
-                    label: 'Payments',
+                    label: l10n.payments,
                     icon: const Icon(Icons.credit_card_outlined, size: 13),
                     onTap: () =>
                         Navigator.pushNamed(context, '/payments'),
                   ),
                   _NavLink(
-                    label: 'Support',
+                    label: l10n.helpAndSupport,
                     icon: const Icon(Icons.info_outline_rounded, size: 13),
                     onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Support – coming soon')),
+                      SnackBar(
+                          content: Text('${l10n.helpAndSupport} – coming soon')),
+                    ),
+                  ),
+                  _NavLink(
+                    label: l10n.announcements,
+                    icon: const Icon(Icons.campaign_outlined, size: 13),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ApplicantAnnouncementsScreen()),
+                    ),
+                  ),
+                  _NavLink(
+                    label: 'Interviews',
+                    icon: const Icon(Icons.calendar_today_outlined, size: 13),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ApplicantInterviewsScreen()),
                     ),
                   ),
                 ],

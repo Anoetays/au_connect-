@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:au_connect/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/services/supabase_service.dart';
-import 'payments_screen.dart';
+import 'package:au_connect/providers/application_form_provider.dart';
 import 'package:au_connect/theme/app_theme.dart';
+
+import 'payments_screen.dart';
 
 // ─── color tokens ─────────────────────────────────────────────────────────────
 const _kCrimson      = AppTheme.primaryDark;
@@ -50,9 +53,7 @@ IconData _iconForFaculty(String f) {
   return Icons.menu_book_outlined;
 }
 
-// ─── featured programme ───────────────────────────────────────────────────────
-const _kFeaturedName    = 'Bachelor of Science Honours in Computer Science';
-const _kFeaturedFaculty = 'Faculty of Science and Technology';
+// No hardcoded featured programme — the first active row from Supabase is used.
 
 // ─── step definitions ─────────────────────────────────────────────────────────
 enum _StepStatus { done, current, upcoming }
@@ -74,15 +75,15 @@ const _kSteps = <_StepDef>[
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
 // ─────────────────────────────────────────────────────────────────────────────
-class SelectProgramScreen extends StatefulWidget {
+class SelectProgramScreen extends ConsumerStatefulWidget {
   const SelectProgramScreen({super.key, this.nextRoute});
   final WidgetBuilder? nextRoute;
 
   @override
-  State<SelectProgramScreen> createState() => _SelectProgramScreenState();
+  ConsumerState<SelectProgramScreen> createState() => _SelectProgramScreenState();
 }
 
-class _SelectProgramScreenState extends State<SelectProgramScreen> {
+class _SelectProgramScreenState extends ConsumerState<SelectProgramScreen> {
   String? _selectedName;
   String? _selectedFaculty;
   bool _saving = false;
@@ -90,8 +91,29 @@ class _SelectProgramScreenState extends State<SelectProgramScreen> {
   final _searchCtrl = TextEditingController();
   String _query = '';
 
-  List<Map<String, dynamic>> _rows = [];
-  bool _loading = true;
+  static const List<Map<String, dynamic>> _defaultProgrammes = [
+    {
+      'name': 'Bachelor of Computer Science',
+      'faculty': 'Science and Tech',
+      'duration_years': 4,
+      'status': 'Active',
+    },
+    {
+      'name': 'Master of Business Administration',
+      'faculty': 'Commerce',
+      'duration_years': 2,
+      'status': 'Active',
+    },
+    {
+      'name': 'Bachelor of Laws (LLB)',
+      'faculty': 'Law',
+      'duration_years': 4,
+      'status': 'Active',
+    },
+  ];
+
+  List<Map<String, dynamic>> _rows = _defaultProgrammes;
+  bool _loading = false;
   StreamSubscription<List<Map<String, dynamic>>>? _sub;
 
   // ── qualifications form ───────────────────────────────────────────────────
@@ -130,9 +152,19 @@ class _SelectProgramScreenState extends State<SelectProgramScreen> {
 
   // ── data helpers ─────────────────────────────────────────────────────────────
 
+  List<Map<String, dynamic>> get _effectiveRows =>
+      _rows.isNotEmpty ? _rows : _defaultProgrammes;
+
+  /// The first active programme is shown as the "featured" card.
+  Map<String, dynamic>? get _featuredRow =>
+      _effectiveRows.isNotEmpty ? _effectiveRows.first : null;
+
+  String get _featuredName    => _featuredRow?['name']    as String? ?? '';
+  String get _featuredFaculty => _featuredRow?['faculty'] as String? ?? '';
+
   List<Map<String, dynamic>> get _filtered {
-    if (_query.isEmpty) return _rows;
-    return _rows.where((r) {
+    if (_query.isEmpty) return _effectiveRows;
+    return _effectiveRows.where((r) {
       final name = (r['name'] as String? ?? '').toLowerCase();
       final fac  = (r['faculty'] as String? ?? '').toLowerCase();
       return name.contains(_query) || fac.contains(_query);
@@ -140,13 +172,14 @@ class _SelectProgramScreenState extends State<SelectProgramScreen> {
   }
 
   bool get _showFeatured {
+    if (_effectiveRows.isEmpty) return false;
     if (_query.isEmpty) return true;
-    return _kFeaturedName.toLowerCase().contains(_query) ||
-        _kFeaturedFaculty.toLowerCase().contains(_query);
+    return _featuredName.toLowerCase().contains(_query) ||
+        _featuredFaculty.toLowerCase().contains(_query);
   }
 
   List<Map<String, dynamic>> get _nonFeatured =>
-      _filtered.where((r) => r['name'] != _kFeaturedName).toList();
+      _filtered.where((r) => r['name'] != _featuredName).toList();
 
   Map<String, List<Map<String, dynamic>>> get _grouped {
     final result = <String, List<Map<String, dynamic>>>{};
@@ -273,6 +306,18 @@ class _SelectProgramScreenState extends State<SelectProgramScreen> {
     if (_selectedName == null || _saving) return;
     setState(() => _saving = true);
     try {
+      // Update the global provider
+      final durationYears = _effectiveRows
+          .firstWhere((r) => r['name'] == _selectedName)['duration_years'] as int? ?? 4;
+      ref.read(applicationFormProvider.notifier).updateSelectedProgram(
+        SelectedProgram(
+          name: _selectedName!,
+          faculty: _selectedFaculty ?? '',
+          durationYears: durationYears,
+        ),
+      );
+
+      // Update Supabase
       final app = await SupabaseService.getMyApplication();
       if (app != null) {
         await SupabaseService.updateApplicationProgramme(
@@ -421,11 +466,14 @@ class _SelectProgramScreenState extends State<SelectProgramScreen> {
 
     final widgets = <Widget>[];
 
-    // Featured card
+    // Featured card (first programme from Supabase)
     if (_showFeatured) {
       widgets.add(_FeaturedCard(
-        selected: _selectedName == _kFeaturedName,
-        onTap: () => _select(_kFeaturedName, _kFeaturedFaculty),
+        name: _featuredName,
+        faculty: _featuredFaculty,
+        durationYears: _featuredRow?['duration_years'] as int? ?? 4,
+        selected: _selectedName == _featuredName,
+        onTap: () => _select(_featuredName, _featuredFaculty),
       ));
       widgets.add(const SizedBox(height: 24));
     }
@@ -832,12 +880,21 @@ class _SearchBarState extends State<_SearchBar> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Featured card (BSc Computer Science Honours)
+// Featured card — first programme from Supabase
 // ─────────────────────────────────────────────────────────────────────────────
 class _FeaturedCard extends StatefulWidget {
+  final String name;
+  final String faculty;
+  final int durationYears;
   final bool selected;
   final VoidCallback onTap;
-  const _FeaturedCard({required this.selected, required this.onTap});
+  const _FeaturedCard({
+    required this.name,
+    required this.faculty,
+    required this.durationYears,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   State<_FeaturedCard> createState() => _FeaturedCardState();
@@ -901,14 +958,14 @@ class _FeaturedCardState extends State<_FeaturedCard> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    _kFeaturedName,
+                    widget.name,
                     style: GoogleFonts.cormorantGaramond(
                       fontSize: 24, fontWeight: FontWeight.w600, color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _kFeaturedFaculty,
+                    widget.faculty,
                     style: GoogleFonts.dmSans(
                       fontSize: 13,
                       color: Colors.white.withValues(alpha: 0.55),
@@ -917,7 +974,10 @@ class _FeaturedCardState extends State<_FeaturedCard> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      _FeatTag(icon: Icons.calendar_month_outlined, label: '4 Years'),
+                      _FeatTag(
+                        icon: Icons.calendar_month_outlined,
+                        label: '${widget.durationYears} Year${widget.durationYears != 1 ? "s" : ""}',
+                      ),
                       const SizedBox(width: 16),
                       _FeatTag(icon: Icons.school_outlined, label: 'Undergraduate'),
                     ],

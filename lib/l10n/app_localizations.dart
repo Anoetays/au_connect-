@@ -617,6 +617,300 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get retry;
+
+  /// No description provided for @application.
+  ///
+  /// In en, this message translates to:
+  /// **'Application'**
+  String get application;
+
+  /// No description provided for @visa.
+  ///
+  /// In en, this message translates to:
+  /// **'Visa'**
+  String get visa;
+
+  /// No description provided for @payments.
+  ///
+  /// In en, this message translates to:
+  /// **'Payments'**
+  String get payments;
+
+  /// No description provided for @transport.
+  ///
+  /// In en, this message translates to:
+  /// **'Transport'**
+  String get transport;
+
+  /// No description provided for @home.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get home;
+
+  /// No description provided for @profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get profile;
+
+  /// No description provided for @settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settings;
+
+  /// No description provided for @helpAndSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Help & Support'**
+  String get helpAndSupport;
+
+  /// No description provided for @myApplication.
+  ///
+  /// In en, this message translates to:
+  /// **'My Application'**
+  String get myApplication;
+
+  /// No description provided for @applicationFee.
+  ///
+  /// In en, this message translates to:
+  /// **'Application Fee'**
+  String get applicationFee;
+
+  /// No description provided for @verified.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified'**
+  String get verified;
+
+  /// No description provided for @notVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Not Verified'**
+  String get notVerified;
+
+  /// No description provided for @complete.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete'**
+  String get complete;
+
+  /// No description provided for @incomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Incomplete'**
+  String get incomplete;
+
+  /// No description provided for @research.
+  ///
+  /// In en, this message translates to:
+  /// **'Research'**
+  String get research;
+
+  /// No description provided for @supervisor.
+  ///
+  /// In en, this message translates to:
+  /// **'Supervisor'**
+  String get supervisor;
+
+  /// No description provided for @proposal.
+  ///
+  /// In en, this message translates to:
+  /// **'Proposal'**
+  String get proposal;
+
+  /// No description provided for @academicRecords.
+  ///
+  /// In en, this message translates to:
+  /// **'Academic Records'**
+  String get academicRecords;
+
+  /// No description provided for @feeBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Fee Balance'**
+  String get feeBalance;
+
+  /// No description provided for @gpa.
+  ///
+  /// In en, this message translates to:
+  /// **'GPA'**
+  String get gpa;
+
+  /// No description provided for @contactUs.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact Us'**
+  String get contactUs;
+
+  /// No description provided for @changeLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Language'**
+  String get changeLanguage;
+
+  /// No description provided for @applicationId.
+  ///
+  /// In en, this message translates to:
+  /// **'Application ID'**
+  String get applicationId;
+
+  /// No description provided for @programme.
+  ///
+  /// In en, this message translates to:
+  /// **'Programme'**
+  String get programme;
+
+  /// No description provided for @faculty.
+  ///
+  /// In en, this message translates to:
+  /// **'Faculty'**
+  String get faculty;
+
+  /// No description provided for @nationality.
+  ///
+  /// In en, this message translates to:
+  /// **'Nationality'**
+  String get nationality;
+
+  /// No description provided for @submit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get submit;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// No description provided for @close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get close;
+
+  /// No description provided for @confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get confirm;
+
+  /// No description provided for @viewApplication.
+  ///
+  /// In en, this message translates to:
+  /// **'View Application'**
+  String get viewApplication;
+
+  /// No description provided for @trackApplication.
+  ///
+  /// In en, this message translates to:
+  /// **'Track Application'**
+  String get trackApplication;
+
+  /// No description provided for @payFee.
+  ///
+  /// In en, this message translates to:
+  /// **'Pay Fee'**
+  String get payFee;
+
+  /// No description provided for @checkEligibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Check Eligibility'**
+  String get checkEligibility;
+
+  /// No description provided for @welcomeStudent.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome'**
+  String get welcomeStudent;
+
+  /// No description provided for @submittedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted on'**
+  String get submittedOn;
+
+  /// No description provided for @noDataAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No data available.'**
+  String get noDataAvailable;
+
+  /// No description provided for @pleaseWait.
+  ///
+  /// In en, this message translates to:
+  /// **'Please wait...'**
+  String get pleaseWait;
+
+  /// No description provided for @error.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get error;
+
+  /// No description provided for @success.
+  ///
+  /// In en, this message translates to:
+  /// **'Success'**
+  String get success;
+
+  /// No description provided for @visaApplication.
+  ///
+  /// In en, this message translates to:
+  /// **'Visa Application'**
+  String get visaApplication;
+
+  /// No description provided for @financialAid.
+  ///
+  /// In en, this message translates to:
+  /// **'Financial Aid'**
+  String get financialAid;
+
+  /// No description provided for @accommodation.
+  ///
+  /// In en, this message translates to:
+  /// **'Accommodation'**
+  String get accommodation;
+
+  /// No description provided for @fees.
+  ///
+  /// In en, this message translates to:
+  /// **'Fees'**
+  String get fees;
+
+  /// No description provided for @status.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get status;
+
+  /// No description provided for @type.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get type;
+
+  /// No description provided for @name.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get name;
+
+  /// No description provided for @date.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get date;
+
+  /// No description provided for @action.
+  ///
+  /// In en, this message translates to:
+  /// **'Action'**
+  String get action;
 }
 
 class _AppLocalizationsDelegate

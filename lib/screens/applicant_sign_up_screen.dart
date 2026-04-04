@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/auth_service.dart';
+import 'package:au_connect/services/supabase_service.dart';
 
 class ApplicantSignUpScreen extends StatefulWidget {
   const ApplicantSignUpScreen({super.key});
@@ -13,6 +14,7 @@ class ApplicantSignUpScreen extends StatefulWidget {
 }
 
 class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _confirmEmailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -33,6 +35,7 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
 
   @override
   void dispose() {
+    _usernameController.dispose();
     _emailController.dispose();
     _confirmEmailController.dispose();
     _passwordController.dispose();
@@ -40,15 +43,29 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
     super.dispose();
   }
 
+  static final _usernameRe = RegExp(r'^[a-zA-Z0-9_]{3,20}$');
+
   Future<void> _signUp() async {
+    final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final confirmEmail = _confirmEmailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    if (email.isEmpty || confirmEmail.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (username.isEmpty || email.isEmpty || confirmEmail.isEmpty ||
+        password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    if (!_usernameRe.hasMatch(username)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Username must be 3–20 characters and contain only letters, numbers, or underscores.'),
+        ),
       );
       return;
     }
@@ -77,9 +94,18 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
     setState(() => _isLoading = true);
     try {
       await _authService.signUpWithEmailAndPassword(email, password);
+      // Save username to the profiles table
+      try {
+        await SupabaseService.upsertProfile({
+          'username': username,
+          'email': email,
+        });
+      } catch (_) {
+        // Non-fatal — profile can be set later
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account created successfully')),
+          SnackBar(content: Text('Account created! Welcome, $username.')),
         );
         Navigator.pushReplacementNamed(context, '/applicant_type_selection');
       }
@@ -226,6 +252,13 @@ class _ApplicantSignUpScreenState extends State<ApplicantSignUpScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _buildTextField(
+            controller: _usernameController,
+            label: 'Username',
+            hint: 'e.g. tendai_m  (3\u201320 chars, letters/numbers/_)',
+            isDark: isDark,
+          ),
+          const SizedBox(height: 20),
           _buildTextField(
             controller: _emailController,
             label: l10n.email,
