@@ -30,6 +30,7 @@ import 'package:au_connect/screens/application_progress_screen.dart';
 import 'package:au_connect/screens/payment_history_screen.dart';
 import 'package:au_connect/screens/profile_settings_screen.dart';
 import 'package:au_connect/screens/visa_application_screen.dart';
+import 'package:video_player/video_player.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
