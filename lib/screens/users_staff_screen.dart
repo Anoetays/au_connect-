@@ -175,6 +175,122 @@ class _UsersStaffPageState extends State<UsersStaffPage> {
     return all.where((s) => s.role == role).length;
   }
 
+  Future<void> _showInviteDialog() async {
+    final nameCtrl  = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final deptCtrl  = TextEditingController();
+    String selectedRole = 'Reviewer';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(children: [
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(color: _kRedSoft, borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.person_add_outlined, size: 16, color: _kRed)),
+            const SizedBox(width: 12),
+            Text('Invite Staff Member',
+              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 16)),
+          ]),
+          content: SizedBox(
+            width: 380,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Full Name *',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.all(12)),
+                style: GoogleFonts.dmSans(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Email Address *',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.all(12)),
+                style: GoogleFonts.dmSans(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedRole,
+                decoration: InputDecoration(
+                  labelText: 'Role',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.all(12)),
+                style: GoogleFonts.dmSans(fontSize: 13, color: _kDark),
+                items: ['Super Admin','Admin','Reviewer','Viewer','Support']
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
+                onChanged: (v) { if (v != null) setDlg(() => selectedRole = v); },
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: deptCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Department (optional)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.all(12)),
+                style: GoogleFonts.dmSans(fontSize: 13),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: GoogleFonts.dmSans())),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kRed, foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9))),
+              onPressed: () async {
+                final name  = nameCtrl.text.trim();
+                final email = emailCtrl.text.trim();
+                if (name.isEmpty || email.isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  await SupabaseService.inviteStaff(
+                    name: name,
+                    email: email,
+                    role: selectedRole,
+                    department: deptCtrl.text.trim().isNotEmpty ? deptCtrl.text.trim() : null,
+                  );
+                  final user = SupabaseService.currentUser;
+                  await SupabaseService.insertAuditLog(
+                    adminName: user?.email ?? 'Admin',
+                    adminRole: 'Admin',
+                    actionType: 'Invite',
+                    description: 'Staff invite sent to $email ($selectedRole)',
+                    targetId: email,
+                    targetType: 'Staff',
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Invite sent to $email'),
+                      backgroundColor: _kGreen));
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Error: $e'), backgroundColor: _kRed));
+                  }
+                }
+              },
+              child: Text('Send Invite', style: GoogleFonts.dmSans(fontWeight: FontWeight.w600))),
+          ],
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+    emailCtrl.dispose();
+    deptCtrl.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(color: _kRed));
@@ -225,7 +341,7 @@ class _UsersStaffPageState extends State<UsersStaffPage> {
         const SizedBox(width: 8),
         _OutlineBtn(icon: Icons.settings_outlined, label: 'Manage Roles'),
         const SizedBox(width: 8),
-        _PrimaryBtn(label: 'Invite Staff', icon: Icons.add),
+        _PrimaryBtn(label: 'Invite Staff', icon: Icons.add, onTap: _showInviteDialog),
       ],
     );
   }
@@ -717,7 +833,8 @@ class _QBtnState extends State<_QBtn> {
 class _PrimaryBtn extends StatefulWidget {
   final String label;
   final IconData icon;
-  const _PrimaryBtn({required this.label, required this.icon});
+  final VoidCallback? onTap;
+  const _PrimaryBtn({required this.label, required this.icon, this.onTap});
   @override State<_PrimaryBtn> createState() => _PrimaryBtnState();
 }
 class _PrimaryBtnState extends State<_PrimaryBtn> {
@@ -728,7 +845,9 @@ class _PrimaryBtnState extends State<_PrimaryBtn> {
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit:  (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         transform: Matrix4.translationValues(0, _hover ? -1 : 0, 0),
         child: Container(
@@ -748,6 +867,7 @@ class _PrimaryBtnState extends State<_PrimaryBtn> {
             Text(widget.label, style: GoogleFonts.dmSans(
               fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
           ]),
+        ),
         ),
       ),
     );

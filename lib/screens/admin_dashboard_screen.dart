@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:au_connect/services/export_csv.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/theme/app_theme.dart';
@@ -14,6 +13,8 @@ import 'package:au_connect/screens/interviews_screen.dart';
 import 'package:au_connect/screens/reports_screen.dart';
 import 'package:au_connect/screens/audit_log_screen.dart';
 import 'package:au_connect/l10n/app_localizations.dart';
+import 'package:au_connect/services/sidebar_badge_provider.dart';
+import 'package:au_connect/screens/application_detail_modal.dart';
 
 // ── colour tokens ─────────────────────────────────────────────────────────────
 const _kRed     = AppTheme.primaryCrimson;
@@ -182,6 +183,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _dataLoading = true;
   StreamSubscription<List<Map<String, dynamic>>>? _streamSub;
 
+  // ── sidebar badge counts ───────────────────────────────────────────────────
+  late final SidebarBadgeProvider _badges;
+
   // ── filter dropdowns ───────────────────────────────────────────────────────
   String _filterStatus    = 'All Statuses';
   String _filterType      = 'All Types';
@@ -190,6 +194,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _badges = SidebarBadgeProvider();
+    _badges.addListener(() { if (mounted) setState(() {}); });
     _streamSub = SupabaseService.streamAllApplications().listen((apps) {
       if (mounted) setState(() { _liveApps = apps; _dataLoading = false; });
     });
@@ -199,6 +205,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void dispose() {
     _search.dispose();
     _streamSub?.cancel();
+    _badges.dispose();
     super.dispose();
   }
 
@@ -315,134 +322,303 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _showAddApplicationDialog() async {
-    final firstNameCtrl = TextEditingController();
-    final surnameCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final natCtrl = TextEditingController();
-    String type = 'Local';
-    String? selectedProgramme;
-    String faculty = '';
-    List<PlatformFile> selectedFiles = [];
+    // Step controllers — Personal
+    final firstNameCtrl  = TextEditingController();
+    final surnameCtrl    = TextEditingController();
+    final emailCtrl      = TextEditingController();
+    final phoneCtrl      = TextEditingController();
+    final dobCtrl        = TextEditingController();
+    final natCtrl        = TextEditingController();
+    String gender        = 'Male';
+    // Step 2 — Application
+    String appType       = 'Local';
+    final progCtrl       = TextEditingController();
+    final facultyCtrl    = TextEditingController();
+    final schoolCtrl     = TextEditingController();
+    final gradesCtrl     = TextEditingController();
+    String studyLevel    = 'Undergraduate';
+    // Step 3 — Next of Kin
+    final kinNameCtrl    = TextEditingController();
+    final kinRelCtrl     = TextEditingController();
+    final kinPhoneCtrl   = TextEditingController();
+    // Shared
+    int step = 0;
+    const steps = ['Personal', 'Application', 'Next of Kin', 'Review'];
+
+    InputDecoration field(String label) => InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      isDense: true,
+    );
 
     await showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          title: const Text('Add Application', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            width: 400,
-            child: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(controller: firstNameCtrl,
-                  decoration: const InputDecoration(labelText: 'First Name', border: OutlineInputBorder())),
-                const SizedBox(height: 10),
-                TextField(controller: surnameCtrl,
-                  decoration: const InputDecoration(labelText: 'Surname', border: OutlineInputBorder())),
-                const SizedBox(height: 10),
-                TextField(controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder())),
-                const SizedBox(height: 10),
-                TextField(controller: phoneCtrl,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone', border: OutlineInputBorder())),
-                const SizedBox(height: 10),
-                TextField(controller: natCtrl,
-                  decoration: const InputDecoration(labelText: 'Nationality', border: OutlineInputBorder())),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: type,
-                  decoration: const InputDecoration(labelText: 'Applicant Type', border: OutlineInputBorder()),
-                  items: ['Local', 'International', 'Masters / PG', 'Transfer', 'Re-Admission']
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                  onChanged: (v) => setDlg(() => type = v!),
+        builder: (ctx, setDlg) {
+          Widget stepContent() {
+            switch (step) {
+              case 0: return Column(mainAxisSize: MainAxisSize.min, children: [
+                  Row(children: [
+                    Expanded(child: TextField(controller: firstNameCtrl,
+                      decoration: field('First Name *'), style: GoogleFonts.dmSans(fontSize: 13))),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(controller: surnameCtrl,
+                      decoration: field('Surname *'), style: GoogleFonts.dmSans(fontSize: 13))),
+                  ]),
+                  const SizedBox(height: 10),
+                  TextField(controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: field('Email Address *'), style: GoogleFonts.dmSans(fontSize: 13)),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: TextField(controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: field('Phone'), style: GoogleFonts.dmSans(fontSize: 13))),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(controller: dobCtrl,
+                      decoration: field('Date of Birth'), style: GoogleFonts.dmSans(fontSize: 13))),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: TextField(controller: natCtrl,
+                      decoration: field('Nationality'), style: GoogleFonts.dmSans(fontSize: 13))),
+                    const SizedBox(width: 10),
+                    Expanded(child: DropdownButtonFormField<String>(
+                      value: gender,
+                      decoration: field('Gender'),
+                      style: GoogleFonts.dmSans(fontSize: 13, color: _kDark),
+                      items: ['Male','Female','Non-binary','Prefer not to say']
+                          .map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                      onChanged: (v) { if (v != null) setDlg(() => gender = v); },
+                    )),
+                  ]),
+                ]);
+              case 1: return Column(mainAxisSize: MainAxisSize.min, children: [
+                  DropdownButtonFormField<String>(
+                    value: appType,
+                    decoration: field('Applicant Type'),
+                    style: GoogleFonts.dmSans(fontSize: 13, color: _kDark),
+                    items: ['Local','International','Masters / PG','Transfer','Re-Admission']
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                    onChanged: (v) { if (v != null) setDlg(() => appType = v); },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: studyLevel,
+                    decoration: field('Study Level'),
+                    style: GoogleFonts.dmSans(fontSize: 13, color: _kDark),
+                    items: ['Undergraduate','Postgraduate','Masters','PhD','Diploma']
+                        .map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+                    onChanged: (v) { if (v != null) setDlg(() => studyLevel = v); },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(controller: progCtrl,
+                    decoration: field('Programme *'), style: GoogleFonts.dmSans(fontSize: 13)),
+                  const SizedBox(height: 10),
+                  TextField(controller: facultyCtrl,
+                    decoration: field('Faculty'), style: GoogleFonts.dmSans(fontSize: 13)),
+                  const SizedBox(height: 10),
+                  TextField(controller: schoolCtrl,
+                    decoration: field('School / Institution Attended'),
+                    style: GoogleFonts.dmSans(fontSize: 13)),
+                  const SizedBox(height: 10),
+                  TextField(controller: gradesCtrl,
+                    decoration: field('Qualifications / Grades'),
+                    style: GoogleFonts.dmSans(fontSize: 13)),
+                ]);
+              case 2: return Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(controller: kinNameCtrl,
+                    decoration: field('Next of Kin Full Name'),
+                    style: GoogleFonts.dmSans(fontSize: 13)),
+                  const SizedBox(height: 10),
+                  TextField(controller: kinRelCtrl,
+                    decoration: field('Relationship'),
+                    style: GoogleFonts.dmSans(fontSize: 13)),
+                  const SizedBox(height: 10),
+                  TextField(controller: kinPhoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: field('Phone Number'),
+                    style: GoogleFonts.dmSans(fontSize: 13)),
+                ]);
+              default: // Review
+                final rows = [
+                  ('Full Name', '${firstNameCtrl.text.trim()} ${surnameCtrl.text.trim()}'),
+                  ('Email', emailCtrl.text.trim()),
+                  ('Phone', phoneCtrl.text.trim()),
+                  ('Nationality', natCtrl.text.trim()),
+                  ('Type', appType),
+                  ('Programme', progCtrl.text.trim()),
+                  ('Faculty', facultyCtrl.text.trim()),
+                  ('Study Level', studyLevel),
+                  ('Next of Kin', kinNameCtrl.text.trim()),
+                ];
+                return Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAF8F8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _kBorder)),
+                  child: Column(mainAxisSize: MainAxisSize.min,
+                    children: rows.where((r) => r.$2.isNotEmpty).map((r) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      decoration: const BoxDecoration(
+                        border: Border(bottom: BorderSide(color: _kBorder))),
+                      child: Row(children: [
+                        SizedBox(width: 130, child: Text(r.$1,
+                          style: GoogleFonts.dmSans(fontSize: 12, color: _kMuted))),
+                        Expanded(child: Text(r.$2,
+                          style: GoogleFonts.dmSans(fontSize: 12, color: _kDark, fontWeight: FontWeight.w500))),
+                      ]),
+                    )).toList(),
+                  ),
+                );
+            }
+          }
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 32, offset: const Offset(0, 10))],
                 ),
-                const SizedBox(height: 10),
-                TextField(
-                  onChanged: (v) => setDlg(() => selectedProgramme = v),
-                  decoration: const InputDecoration(labelText: 'Programme', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  onChanged: (v) => setDlg(() => faculty = v),
-                  decoration: const InputDecoration(labelText: 'Faculty', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: Text('Documents: ${selectedFiles.length} selected')),
-                  TextButton(
-                    onPressed: () async {
-                      final result = await FilePicker.platform.pickFiles(allowMultiple: true);
-                      if (result != null) {
-                        setDlg(() => selectedFiles = result.files);
-                      }
-                    },
-                    child: const Text('Select Files'),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 18, 16, 18),
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: _kBorder)),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    child: Row(children: [
+                      Container(width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [_kRedDeep, _kRed]),
+                          borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.person_add_outlined, color: Colors.white, size: 18)),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Add Application',
+                          style: GoogleFonts.dmSerifDisplay(fontSize: 17, color: _kDark)),
+                        Text('Step ${step + 1} of 4 — ${steps[step]}',
+                          style: GoogleFonts.dmSans(fontSize: 11, color: _kMuted)),
+                      ])),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18, color: _kMuted),
+                        onPressed: () => Navigator.pop(ctx)),
+                    ]),
+                  ),
+                  // Step indicator
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+                    child: Row(children: List.generate(4, (i) => Expanded(child: Container(
+                      height: 3,
+                      margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
+                      decoration: BoxDecoration(
+                        color: i <= step ? _kRed : _kRedSoft,
+                        borderRadius: BorderRadius.circular(2)),
+                    )))),
+                  ),
+                  // Content
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: stepContent(),
+                  ),
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: _kBorder))),
+                    child: Row(children: [
+                      if (step > 0)
+                        OutlinedButton(
+                          onPressed: () => setDlg(() => step--),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: _kBorder),
+                            foregroundColor: _kDark,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11)),
+                          child: Text('Back', style: GoogleFonts.dmSans(fontSize: 13))),
+                      const Spacer(),
+                      if (step < 3)
+                        ElevatedButton(
+                          onPressed: () {
+                            if (step == 0) {
+                              if (firstNameCtrl.text.trim().isEmpty ||
+                                  surnameCtrl.text.trim().isEmpty ||
+                                  emailCtrl.text.trim().isEmpty) return;
+                            }
+                            if (step == 1 && progCtrl.text.trim().isEmpty) return;
+                            setDlg(() => step++);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _kRed, foregroundColor: Colors.white, elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11)),
+                          child: Text('Next', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600)))
+                      else
+                        ElevatedButton(
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            try {
+                              final fullName = '${firstNameCtrl.text.trim()} ${surnameCtrl.text.trim()}';
+                              final appCode = await SupabaseService.submitApplication(
+                                applicantName: fullName,
+                                email: emailCtrl.text.trim(),
+                                type: appType,
+                                programme: progCtrl.text.trim(),
+                                faculty: facultyCtrl.text.trim(),
+                                nationality: natCtrl.text.trim(),
+                                phone: phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
+                                source: 'admin_manual',
+                              );
+                              final user = SupabaseService.currentUser;
+                              await SupabaseService.insertAuditLog(
+                                adminName: user?.email ?? 'Admin',
+                                adminRole: 'Admin',
+                                actionType: 'Application Created',
+                                description: 'Manual application added for $fullName — $appCode',
+                                targetId: appCode,
+                                targetType: 'Application',
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text('Application added: $appCode'),
+                                  backgroundColor: _kGreen));
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text('Error: $e'), backgroundColor: _kRed));
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _kGreen, foregroundColor: Colors.white, elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11)),
+                          child: Text('Submit Application',
+                            style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600))),
+                    ]),
                   ),
                 ]),
-                if (selectedFiles.isNotEmpty)
-                  Column(children: selectedFiles.map((f) => Text(f.name)).toList()),
-              ]),
+              ),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _kRed, foregroundColor: Colors.white),
-              onPressed: () async {
-                final firstName = firstNameCtrl.text.trim();
-                final surname = surnameCtrl.text.trim();
-                final email = emailCtrl.text.trim();
-                final phone = phoneCtrl.text.trim();
-                if (firstName.isEmpty || surname.isEmpty || email.isEmpty) return;
-                Navigator.pop(ctx);
-                try {
-                  final fullName = '$firstName $surname';
-                  final id = await SupabaseService.submitApplication(
-                    applicantName: fullName,
-                    email: email,
-                    type: type,
-                    programme: selectedProgramme ?? '',
-                    faculty: faculty,
-                    nationality: natCtrl.text.trim(),
-                    phone: phone,
-                    source: 'admin_manual',
-                  );
-                  // Upload documents if any
-                  for (final file in selectedFiles) {
-                    if (file.bytes != null) {
-                      await SupabaseService.uploadDocument(
-                        applicationId: id,
-                        documentType: 'admin_uploaded',
-                        fileName: file.name,
-                        fileBytes: file.bytes!,
-                      );
-                    }
-                  }
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Application $id added with ${selectedFiles.length} documents')));
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              child: const Text('Add Application'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-    firstNameCtrl.dispose();
-    surnameCtrl.dispose();
-    emailCtrl.dispose();
-    phoneCtrl.dispose();
-    natCtrl.dispose();
+    firstNameCtrl.dispose(); surnameCtrl.dispose(); emailCtrl.dispose();
+    phoneCtrl.dispose(); dobCtrl.dispose(); natCtrl.dispose();
+    progCtrl.dispose(); facultyCtrl.dispose(); schoolCtrl.dispose(); gradesCtrl.dispose();
+    kinNameCtrl.dispose(); kinRelCtrl.dispose(); kinPhoneCtrl.dispose();
   }
 
   Future<void> _showBulkActionsDialog() async {
@@ -535,7 +711,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       } else {
         await _setStatus(entry.id, 'Approved');
       }
-      // Also send an admin notification for the audit trail
+      // Insert offer letter
+      if (entry.userId.isNotEmpty) {
+        final now = DateTime.now();
+        final dateStr = '${now.day} ${['January','February','March','April','May','June','July','August','September','October','November','December'][now.month - 1]} ${now.year}';
+        final letter = '''
+AFRICA UNIVERSITY — OFFER OF ADMISSION
+
+Date: $dateStr
+
+Dear ${entry.name},
+
+We are delighted to inform you that your application to Africa University for the programme "${entry.programme}" has been reviewed and we are pleased to offer you a place.
+
+Your application reference is: ${entry.appId}
+
+Please log in to your applicant portal to view your full offer letter, accept or decline this offer, and complete your enrolment steps.
+
+Congratulations and welcome to Africa University!
+
+Admissions Office
+Africa University
+''';
+        await SupabaseService.insertOfferLetter(
+          applicationId: entry.id,
+          applicantUserId: entry.userId,
+          programme: entry.programme,
+          letterContent: letter,
+        );
+      }
+      // Admin notification + audit
       try {
         await SupabaseService.insertAdminNotification(
           type: 'status_update',
@@ -631,6 +836,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             suggestedProgrammes: suggestedCtrl.text.trim().isNotEmpty
                 ? suggestedCtrl.text.trim()
                 : null,
+          );
+          // Insert rejection letter
+          final reason = reasonCtrl.text.trim();
+          final now = DateTime.now();
+          final dateStr = '${now.day} ${['January','February','March','April','May','June','July','August','September','October','November','December'][now.month - 1]} ${now.year}';
+          final letter = '''
+AFRICA UNIVERSITY — ADMISSION DECISION
+
+Date: $dateStr
+
+Dear ${entry.name},
+
+Thank you for applying to Africa University for the programme "${entry.programme}" (Ref: ${entry.appId}).
+
+After careful consideration, we regret to inform you that your application has been unsuccessful at this time.
+
+Reason: $reason
+${suggestedCtrl.text.trim().isNotEmpty ? '\nAlternative programmes you may consider: ${suggestedCtrl.text.trim()}' : ''}
+
+We encourage you to contact the Admissions Office for further guidance and to reapply in a future intake period.
+
+Admissions Office
+Africa University
+''';
+          await SupabaseService.insertRejectionLetter(
+            applicationId: entry.id,
+            applicantUserId: entry.userId,
+            programme: entry.programme,
+            reason: reason,
+            letterContent: letter,
           );
         } else {
           await _setStatus(entry.id, 'Rejected');
@@ -737,6 +972,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               if (wide)
                 _Sidebar(
                   selected: _navIdx,
+                  badges: _badges,
                   onSelect: (i) {
                     if (i == 12) { _showLogoutDialog(); return; }
                     setState(() => _navIdx = i);
@@ -1074,6 +1310,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 entry: e.value,
                 isLast: e.key == apps.length - 1,
                 onAction: (action) => _handleAction(e.value, action),
+                onView: () => showApplicationDetailModal(
+                  context,
+                  applicationId: e.value.id,
+                  applicantName: e.value.name,
+                  onApprove: () => _handleApprove(e.value),
+                  onReject: () => _handleDeny(e.value),
+                ),
               )),
           ]),
         ),
@@ -1248,23 +1491,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 }
 
 // ── _Sidebar ──────────────────────────────────────────────────────────────────
-List<(String, List<(int, IconData, String, int?, Color?)>)> _buildSidebarGroups(AppLocalizations l10n) => [
+List<(String, List<(int, IconData, String, int?, Color?)>)> _buildSidebarGroups(
+    AppLocalizations l10n, SidebarBadgeProvider badges) => [
   (
     'MAIN',
     <(int, IconData, String, int?, Color?)>[
-      (0,  Icons.grid_view_rounded,       'Overview',       null, null),
-      (1,  Icons.description_outlined,    'Applications',   247,  null),
-      (2,  Icons.people_outline_rounded,  'Students',       1204, null),
-      (3,  Icons.school_outlined,         'Programmes',     null, null),
-      (4,  Icons.folder_outlined,         l10n.documents,   12,   null),
-      (5,  Icons.manage_accounts_outlined,'Users / Staff',  null, null),
+      (0,  Icons.grid_view_rounded,       'Overview',      null,                                        null),
+      (1,  Icons.description_outlined,    'Applications',  badges.applications > 0 ? badges.applications : null, null),
+      (2,  Icons.people_outline_rounded,  'Students',      badges.students > 0 ? badges.students : null, null),
+      (3,  Icons.school_outlined,         'Programmes',    null,                                        null),
+      (4,  Icons.folder_outlined,         l10n.documents,  badges.documents > 0 ? badges.documents : null, null),
+      (5,  Icons.manage_accounts_outlined,'Users / Staff', null,                                        null),
     ]
   ),
   (
     'TOOLS',
     <(int, IconData, String, int?, Color?)>[
-      (6,  Icons.notifications_outlined, l10n.notifications, 5,  AppTheme.primaryCrimson),
-      (7,  Icons.campaign_outlined,      l10n.announcements, 3,  AppTheme.primaryCrimson),
+      (6,  Icons.notifications_outlined, l10n.notifications, badges.notifications > 0 ? badges.notifications : null, AppTheme.primaryCrimson),
+      (7,  Icons.campaign_outlined,      l10n.announcements, badges.announcements > 0 ? badges.announcements : null, AppTheme.primaryCrimson),
       (8,  Icons.event_outlined,         'Interviews',    null, null),
       (9,  Icons.bar_chart_rounded,      'Reports',       null, null),
       (10, Icons.shield_outlined,        'Audit Log',     null, null),
@@ -1282,11 +1526,12 @@ List<(String, List<(int, IconData, String, int?, Color?)>)> _buildSidebarGroups(
 class _Sidebar extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelect;
-  const _Sidebar({required this.selected, required this.onSelect});
+  final SidebarBadgeProvider badges;
+  const _Sidebar({required this.selected, required this.onSelect, required this.badges});
 
   @override
   Widget build(BuildContext context) {
-    final sidebarGroups = _buildSidebarGroups(AppLocalizations.of(context)!);
+    final sidebarGroups = _buildSidebarGroups(AppLocalizations.of(context)!, badges);
     return Container(
       width: _kSidebarW,
       decoration: const BoxDecoration(
@@ -1918,8 +2163,9 @@ class _AppRow extends StatefulWidget {
   final _AppEntry entry;
   final bool isLast;
   final ValueChanged<String> onAction;
+  final VoidCallback? onView;
   const _AppRow({required this.entry, required this.isLast,
-      required this.onAction});
+      required this.onAction, this.onView});
   @override
   State<_AppRow> createState() => _AppRowState();
 }
@@ -1999,6 +2245,8 @@ class _AppRowState extends State<_AppRow> {
           Expanded(flex: 2, child: _StatusPill(e.status)),
           // Actions
           Expanded(flex: 4, child: Row(children: [
+            _QBtn(Icons.visibility_outlined, 'View',
+                color: _kBlue, onTap: () => widget.onView?.call()),
             _QBtn(Icons.check_rounded, 'Accept',
                 color: _kGreen, onTap: () => widget.onAction('Approve')),
             _QBtn(Icons.close_rounded, 'Deny',

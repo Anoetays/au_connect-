@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:au_connect/l10n/app_localizations.dart';
 import 'package:au_connect/theme/app_theme.dart';
 import 'package:au_connect/services/supabase_service.dart';
@@ -41,6 +40,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _application;
   Map<String, dynamic>? _offerLetter;
+  Map<String, dynamic>? _rejectionLetter;
   List<Map<String, dynamic>> _announcements = [];
   bool _loading = true;
   String? _error;
@@ -83,6 +83,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
         SupabaseService.getMyApplication(),
         SupabaseService.getAnnouncements('applicant'),
         SupabaseService.getMyOfferLetter(),
+        SupabaseService.getMyRejectionLetter(),
       ]);
       Map<String, dynamic>? app = results[1] as Map<String, dynamic>?;
       List<Map<String, dynamic>> docs = [];
@@ -102,6 +103,7 @@ class _OnboardingBodyState extends State<_OnboardingBody>
         _announcements =
             (results[2] as List<Map<String, dynamic>>?) ?? [];
         _offerLetter = results[3] as Map<String, dynamic>?;
+        _rejectionLetter = results[4] as Map<String, dynamic>?;
         _loading = false;
       });
       _ctrl.forward(from: 0);
@@ -257,6 +259,8 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                     SliverToBoxAdapter(child: _buildAnnouncement()),
                   if (_offerLetter != null)
                     SliverToBoxAdapter(child: _buildOfferLetterBanner()),
+                  if (_rejectionLetter != null && _offerLetter == null)
+                    SliverToBoxAdapter(child: _buildRejectionLetterBanner()),
                   if (_application != null)
                     SliverToBoxAdapter(
                       child: Padding(
@@ -1040,82 +1044,197 @@ class _OnboardingBodyState extends State<_OnboardingBody>
 
   // ── Offer letter banner ───────────────────────────────────────────────────
 
-  Widget _buildOfferLetterBanner() {
-    final signedUrl = _s(_offerLetter?['signed_url']);
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [
-          AppTheme.statusApproved.withValues(alpha: 0.08),
-          AppTheme.statusApproved.withValues(alpha: 0.03),
-        ]),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: AppTheme.statusApproved.withValues(alpha: 0.4)),
-      ),
-      child: Row(children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppTheme.statusApproved.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color:
-                    AppTheme.statusApproved.withValues(alpha: 0.3)),
-          ),
-          child: const Icon(Icons.picture_as_pdf_rounded,
-              color: AppTheme.statusApproved, size: 22),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-            Text('Offer Letter Ready',
-                style: GoogleFonts.dmSerifDisplay(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary)),
-            const SizedBox(height: 2),
-            Text(
-                'Your offer of admission is available to download.',
-                style: GoogleFonts.dmSans(
-                    fontSize: 12, color: AppTheme.textMuted)),
-          ]),
-        ),
-        const SizedBox(width: 12),
-        GestureDetector(
-          onTap: signedUrl.isNotEmpty
-              ? () async {
-                  final uri = Uri.tryParse(signedUrl);
-                  if (uri != null && await canLaunchUrl(uri)) {
-                    await launchUrl(uri,
-                        mode: LaunchMode.externalApplication);
-                  } else if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content:
-                              Text('Could not open offer letter.')));
-                  }
-                }
-              : null,
+  void _showLetterModal({
+    required String title,
+    required String content,
+    required Color accentColor,
+    required IconData icon,
+  }) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640, maxHeight: 700),
           child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 32, offset: const Offset(0, 10))],
+            ),
+            child: Column(children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 20, 16, 20),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.06),
+                  border: Border(bottom: BorderSide(color: accentColor.withValues(alpha: 0.2))),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: accentColor.withValues(alpha: 0.3))),
+                    child: Icon(icon, color: accentColor, size: 20),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Text(title,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 18, color: AppTheme.textPrimary, letterSpacing: -0.3))),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, size: 20, color: AppTheme.textMuted),
+                    onPressed: () => Navigator.pop(context)),
+                ]),
+              ),
+              // Body
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(content,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13, color: AppTheme.textPrimary,
+                      height: 1.7, fontWeight: FontWeight.w400)),
+                ),
+              ),
+              // Footer
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: accentColor.withValues(alpha: 0.15))),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Close', style: GoogleFonts.dmSans(color: AppTheme.textMuted))),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfferLetterBanner() {
+    final content = _s(_offerLetter?['letter_content'],
+        'Your offer letter is ready. Please contact the admissions office for details.');
+    return GestureDetector(
+      onTap: () => _showLetterModal(
+        title: 'Offer of Admission',
+        content: content,
+        accentColor: AppTheme.statusApproved,
+        icon: Icons.check_circle_outline_rounded,
+      ),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            AppTheme.statusApproved.withValues(alpha: 0.08),
+            AppTheme.statusApproved.withValues(alpha: 0.03),
+          ]),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.statusApproved.withValues(alpha: 0.4)),
+        ),
+        child: Row(children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.statusApproved.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.statusApproved.withValues(alpha: 0.3))),
+            child: const Icon(Icons.check_circle_outline_rounded,
+                color: AppTheme.statusApproved, size: 22),
+          ),
+          const SizedBox(width: 16),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Congratulations! Offer Letter Ready',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+              const SizedBox(height: 2),
+              Text('Your offer of admission is ready. Tap to view.',
+                style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.textMuted)),
+            ],
+          )),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: AppTheme.statusApproved,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text('Download',
-                style: GoogleFonts.dmSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white)),
+              borderRadius: BorderRadius.circular(10)),
+            child: Text('View Letter',
+              style: GoogleFonts.dmSans(
+                fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
           ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildRejectionLetterBanner() {
+    final content = _s(_rejectionLetter?['letter_content'],
+        'Your application has been reviewed. Please contact the admissions office for further guidance.');
+    return GestureDetector(
+      onTap: () => _showLetterModal(
+        title: 'Application Decision',
+        content: content,
+        accentColor: AppTheme.primaryCrimson,
+        icon: Icons.info_outline_rounded,
+      ),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            AppTheme.primaryCrimson.withValues(alpha: 0.06),
+            AppTheme.primaryCrimson.withValues(alpha: 0.02),
+          ]),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.primaryCrimson.withValues(alpha: 0.3)),
         ),
-      ]),
+        child: Row(children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryLight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.primaryCrimson.withValues(alpha: 0.25))),
+            child: const Icon(Icons.info_outline_rounded,
+                color: AppTheme.primaryCrimson, size: 22),
+          ),
+          const SizedBox(width: 16),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Application Update',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+              const SizedBox(height: 2),
+              Text('A decision has been made on your application. Tap to view.',
+                style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.textMuted)),
+            ],
+          )),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryCrimson,
+              borderRadius: BorderRadius.circular(10)),
+            child: Text('View Letter',
+              style: GoogleFonts.dmSans(
+                fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
+        ]),
+      ),
     );
   }
 

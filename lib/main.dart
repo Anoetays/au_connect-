@@ -11,7 +11,7 @@ import 'package:au_connect/screens/welcome_screen.dart';
 import 'package:au_connect/screens/admin_sign_in_screen.dart';
 import 'package:au_connect/screens/applicant_sign_in_screen.dart';
 import 'package:au_connect/screens/student_sign_in_screen.dart';
-import 'package:au_connect/screens/applicant_sign_up_screen.dart';
+import 'package:au_connect/screens/onboarding/onboarding_flow_screen.dart';
 import 'package:au_connect/screens/applicant_type_selection_screen.dart';
 import 'package:au_connect/screens/login_screen.dart';
 import 'package:au_connect/screens/dashboard_screen.dart';
@@ -30,24 +30,47 @@ import 'package:au_connect/screens/application_progress_screen.dart';
 import 'package:au_connect/screens/payment_history_screen.dart';
 import 'package:au_connect/screens/profile_settings_screen.dart';
 import 'package:au_connect/screens/visa_application_screen.dart';
+import 'package:au_connect/screens/visa/visa_guidance_screen.dart';
+import 'package:au_connect/screens/postgrad_masters_flows.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
 
-  await Supabase.initialize(
-    url: SupabaseConfig.supabaseUrl,
-    anonKey: SupabaseConfig.supabaseAnonKey,
+  // Catch all Flutter framework errors so a crash shows a red error screen
+  // instead of a silent white screen.
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('FlutterError: ${details.exceptionAsString()}');
+  };
+
+  try {
+    await Supabase.initialize(
+      url: SupabaseConfig.supabaseUrl,
+      anonKey: SupabaseConfig.supabaseAnonKey,
+    );
+    debugPrint('Supabase initialized successfully');
+  } catch (e, st) {
+    debugPrint('Supabase init failed: $e\n$st');
+  }
+
+  String? savedLocale;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    savedLocale = prefs.getString('locale');
+  } catch (e) {
+    debugPrint('SharedPreferences failed: $e');
+  }
+
+  runZonedGuarded(
+    () => runApp(AuConnectApp(
+      initialLocale: savedLocale != null ? Locale(savedLocale) : null,
+      showLanguageSelection: savedLocale == null,
+    )),
+    (error, stack) => debugPrint('Unhandled error: $error\n$stack'),
   );
-
-  final prefs = await SharedPreferences.getInstance();
-  final savedLocale = prefs.getString('locale');
-
-  debugPrint('Supabase initialized successfully');
-  runApp(AuConnectApp(
-    initialLocale: savedLocale != null ? Locale(savedLocale) : null,
-    showLanguageSelection: savedLocale == null,
-  ));
 }
 
 /// Public interface so [LanguageSelectionScreen] can call [setLocale]
@@ -129,7 +152,7 @@ class _AuConnectAppState extends State<AuConnectApp>
         Locale('pt'),
         Locale('sw'),
       ],
-      initialRoute: widget.showLanguageSelection ? '/language' : '/',
+      initialRoute: '/applicant_sign_up',
       routes: {
         '/': (context) => const WelcomeScreen(),
         '/login': (context) => const LoginScreen(),
@@ -140,7 +163,7 @@ class _AuConnectAppState extends State<AuConnectApp>
         '/student_sign_in': (context) => const StudentSignInScreen(),
         '/applicant_sign_in': (context) => const ApplicantSignInScreen(),
         '/admin_sign_in': (context) => const AdminSignInScreen(),
-        '/applicant_sign_up': (context) => const ApplicantSignUpScreen(),
+        '/applicant_sign_up': (context) => const OnboardingFlowScreen(),
         '/applicant_type_selection': (context) =>
             const ApplicantTypeSelectionScreen(),
         // Applicant dashboards
@@ -164,6 +187,9 @@ class _AuConnectAppState extends State<AuConnectApp>
         '/language_change': (context) =>
             const LanguageSelectionScreen(isChange: true),
         '/visa_application': (context) => const VisaApplicationScreen(),
+        '/visa_guidance': (context) => const VisaGuidanceScreen(),
+        '/postgrad_welcome': (context) => const PostgradWelcomeScreen(),
+        '/masters_welcome': (context) => const MastersWelcomeScreen(),
       },
     ),
   );

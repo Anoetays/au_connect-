@@ -41,7 +41,22 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) {
+      return Scaffold(
+        backgroundColor: AppTheme.surface,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Loading...', style: GoogleFonts.poppins(fontSize: 20)),
+              const SizedBox(height: 20),
+              const CircularProgressIndicator(),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: Stack(
@@ -127,7 +142,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           badge: null,
                           onTap: () {
                             HapticFeedback.selectionClick();
-                            Navigator.pushNamed(context, '/applicant_sign_in');
+                            Navigator.pushNamed(context, '/applicant_sign_up');
                           },
                         ),
                       ),

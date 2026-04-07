@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/services/supabase_service.dart';
@@ -21,6 +22,7 @@ enum _AnnStatus   { live, scheduled, draft }
 enum _AnnAudience { everyone, applicant, student, international, postgraduate }
 
 class _AnnEntry {
+  final String id;
   final String title;
   final String body;
   final String time;
@@ -28,10 +30,10 @@ class _AnnEntry {
   final _AnnStatus status;
   final _AnnAudience audience;
   final String? statusDetail;
-  final int? views;
   final int? recipients;
 
   const _AnnEntry({
+    this.id = '',
     required this.title,
     required this.body,
     required this.time,
@@ -39,43 +41,69 @@ class _AnnEntry {
     required this.status,
     required this.audience,
     this.statusDetail,
-    this.views,
     this.recipients,
   });
 }
 
-const _kAnns = <_AnnEntry>[
-  _AnnEntry(
-    title: '2025 Application Deadline — March 31',
-    body: 'All prospective students are reminded that the 2025 intake application deadline is March 31st. Ensure all documents are submitted before midnight.',
-    time: '2 hrs ago',
-    priority: _AnnPriority.critical, status: _AnnStatus.live,
-    audience: _AnnAudience.everyone, views: 847, recipients: 1204,
-  ),
-  _AnnEntry(
-    title: 'Document Verification Update',
-    body: 'Please ensure your National ID and academic transcripts are certified copies. Uncertified documents will be returned and may delay your application processing.',
-    time: 'Yesterday',
-    priority: _AnnPriority.urgent, status: _AnnStatus.live,
-    audience: _AnnAudience.applicant, views: 612, recipients: 389,
-  ),
-  _AnnEntry(
-    title: 'Orientation Week — April 2025',
-    body: 'Orientation Week for new students will be held April 7–11, 2025. All newly accepted students are required to attend. Details on venue and programme to follow.',
-    time: 'Scheduled',
-    priority: _AnnPriority.normal, status: _AnnStatus.scheduled,
-    audience: _AnnAudience.student,
-    statusDetail: 'Apr 1, 2025 · 09:00',
-  ),
-  _AnnEntry(
-    title: 'Scholarship Applications Now Open',
-    body: 'The AU Merit Scholarship and Financial Aid Programme for 2025 are now open. Eligible students can apply through the student portal before April 30th.',
-    time: 'Draft',
-    priority: _AnnPriority.normal, status: _AnnStatus.draft,
-    audience: _AnnAudience.everyone,
-    statusDetail: 'Draft — not yet published',
-  ),
-];
+String _annTimeAgo(String? isoString) {
+  if (isoString == null) return '';
+  final dt = DateTime.tryParse(isoString)?.toLocal();
+  if (dt == null) return '';
+  final d = DateTime.now().difference(dt);
+  if (d.inMinutes < 1) return 'Just now';
+  if (d.inHours < 1) return '${d.inMinutes} min ago';
+  if (d.inDays < 1) return '${d.inHours} hr${d.inHours > 1 ? "s" : ""} ago';
+  if (d.inDays == 1) return 'Yesterday';
+  return '${d.inDays} days ago';
+}
+
+_AnnEntry _rowToEntry(Map<String, dynamic> r) {
+  final statusStr = (r['status'] as String? ?? 'draft').toLowerCase();
+  final status = switch (statusStr) {
+    'live'      => _AnnStatus.live,
+    'scheduled' => _AnnStatus.scheduled,
+    _           => _AnnStatus.draft,
+  };
+  final priorityStr = (r['priority'] as String? ?? 'normal').toLowerCase();
+  final priority = switch (priorityStr) {
+    'critical' => _AnnPriority.critical,
+    'urgent'   => _AnnPriority.urgent,
+    _          => _AnnPriority.normal,
+  };
+  final audienceStr = (r['target_audience'] ?? r['audience'] ?? 'Everyone')
+      .toString().toLowerCase();
+  final audience = switch (audienceStr) {
+    'applicant'     => _AnnAudience.applicant,
+    'student'       => _AnnAudience.student,
+    'international' => _AnnAudience.international,
+    'postgraduate'  => _AnnAudience.postgraduate,
+    _               => _AnnAudience.everyone,
+  };
+  final scheduledFor = r['scheduled_for'] as String?;
+  String? statusDetail;
+  if (status == _AnnStatus.scheduled && scheduledFor != null) {
+    final dt = DateTime.tryParse(scheduledFor)?.toLocal();
+    if (dt != null) {
+      const mo = ['Jan','Feb','Mar','Apr','May','Jun',
+                  'Jul','Aug','Sep','Oct','Nov','Dec'];
+      final h = dt.hour, m = dt.minute;
+      statusDetail = '${mo[dt.month - 1]} ${dt.day} · ${h.toString().padLeft(2,"0")}:${m.toString().padLeft(2,"0")}';
+    }
+  } else if (status == _AnnStatus.draft) {
+    statusDetail = 'Draft — not yet published';
+  }
+  return _AnnEntry(
+    id: r['id']?.toString() ?? '',
+    title: r['title'] as String? ?? '',
+    body: r['message'] as String? ?? '',
+    time: _annTimeAgo(r['created_at'] as String?),
+    priority: priority,
+    status: status,
+    audience: audience,
+    statusDetail: statusDetail,
+    recipients: r['recipient_count'] as int?,
+  );
+}
 
 // ── page widget ───────────────────────────────────────────────────────────────
 class AnnouncementsPage extends StatefulWidget {
@@ -92,21 +120,30 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
   final Set<_AnnAudience> _audiences = {_AnnAudience.everyone};
   bool _scheduleLater = false;
 
-  // recent list state
+  // live data
+  List<Map<String, dynamic>> _rows = [];
+  StreamSubscription<List<Map<String, dynamic>>>? _sub;
+
+  // recent list filters
   String _search = '';
   String _statusFilter = 'All Status';
   String _audienceFilter = 'All Audiences';
-  late List<_AnnEntry> _anns;
+
+  List<_AnnEntry> get _anns => _rows.map(_rowToEntry).toList();
 
   @override
   void initState() {
     super.initState();
-    _anns = List<_AnnEntry>.from(_kAnns);
     _bodyCtrl.addListener(() => setState(() {}));
+    _sub = SupabaseService.streamAdminAnnouncements().listen(
+      (rows) { if (mounted) setState(() => _rows = rows); },
+      onError: (_) {},
+    );
   }
 
   @override
   void dispose() {
+    _sub?.cancel();
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
     super.dispose();
@@ -137,7 +174,12 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
     return list;
   }
 
-  void _deleteAnn(int idx) => setState(() => _anns.removeAt(idx));
+  Future<void> _deleteAnn(String id) async {
+    if (id.isEmpty) return;
+    try {
+      await SupabaseService.deleteAnnouncement(id);
+    } catch (_) {}
+  }
 
   Future<void> _postAnnouncement() async {
     final title = _titleCtrl.text.trim();
@@ -202,21 +244,9 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
       } catch (_) {}
     }
 
-    // Also update local UI immediately
-    final entry = _AnnEntry(
-      title: title,
-      body: body,
-      time: 'Just now',
-      priority: _priority,
-      status: _scheduleLater ? _AnnStatus.scheduled : _AnnStatus.live,
-      audience: _audiences.contains(_AnnAudience.everyone)
-          ? _AnnAudience.everyone
-          : _audiences.first,
-      views: 0, recipients: 0,
-    );
+    // Stream will auto-refresh — just reset the form
     if (!mounted) return;
     setState(() {
-      _anns.insert(0, entry);
       _titleCtrl.clear();
       _bodyCtrl.clear();
       _priority = _AnnPriority.normal;
@@ -559,10 +589,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
         // list
         ...List.generate(items.length, (i) => _AnnItemWidget(
           entry: items[i],
-          onDelete: () {
-            final orig = _anns.indexOf(items[i]);
-            if (orig >= 0) _deleteAnn(orig);
-          },
+          onDelete: () => _deleteAnn(items[i].id),
         )),
         // footer
         Container(
@@ -685,13 +712,6 @@ class _AnnItemWidgetState extends State<_AnnItemWidget> {
                   _AnnStatus.draft     => _kMuted,
                 }),
             ),
-            if (e.views != null) ...[
-              const SizedBox(width: 10),
-              Icon(Icons.visibility_outlined, size: 11, color: _kMuted),
-              const SizedBox(width: 3),
-              Text('${e.views} views', style: GoogleFonts.dmSans(
-                fontSize: 10, color: _kMuted, fontWeight: FontWeight.w300)),
-            ],
             if (e.recipients != null) ...[
               const SizedBox(width: 10),
               Icon(Icons.mail_outline_rounded, size: 11, color: _kMuted),

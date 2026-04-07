@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // ── Brand Colors ──────────────────────────────────────────────────────────
@@ -107,37 +106,37 @@ class AppTheme {
         outline: border,
       ),
       scaffoldBackgroundColor: background,
-      textTheme: GoogleFonts.dmSansTextTheme(base.textTheme).copyWith(
-        displayLarge: GoogleFonts.dmSerifDisplay(
+      textTheme: base.textTheme.copyWith(
+        displayLarge: const TextStyle(
             fontSize: 32, fontWeight: FontWeight.w400, letterSpacing: -0.5,
             color: textPrimary),
-        headlineLarge: GoogleFonts.dmSerifDisplay(
+        headlineLarge: const TextStyle(
             fontSize: 26, fontWeight: FontWeight.w400, letterSpacing: -0.5,
             color: textPrimary),
-        headlineMedium: GoogleFonts.dmSerifDisplay(
+        headlineMedium: const TextStyle(
             fontSize: 22, fontWeight: FontWeight.w400, letterSpacing: -0.3,
             color: textPrimary),
-        headlineSmall: GoogleFonts.dmSans(
+        headlineSmall: const TextStyle(
             fontSize: 18, fontWeight: FontWeight.w700, color: textPrimary),
-        titleLarge: GoogleFonts.dmSans(
+        titleLarge: const TextStyle(
             fontSize: 17, fontWeight: FontWeight.w700, color: textPrimary),
-        titleMedium: GoogleFonts.dmSans(
+        titleMedium: const TextStyle(
             fontSize: 15, fontWeight: FontWeight.w600, color: textPrimary),
-        titleSmall: GoogleFonts.dmSans(
+        titleSmall: const TextStyle(
             fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary),
-        bodyLarge: GoogleFonts.dmSans(
+        bodyLarge: const TextStyle(
             fontSize: 15, height: 1.5, color: textPrimary),
-        bodyMedium: GoogleFonts.dmSans(
+        bodyMedium: const TextStyle(
             fontSize: 14, height: 1.5, color: textPrimary),
-        bodySmall: GoogleFonts.dmSans(
+        bodySmall: const TextStyle(
             fontSize: 12, height: 1.4, color: textMuted),
-        labelLarge: GoogleFonts.dmSans(
+        labelLarge: const TextStyle(
             fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.1,
             color: textPrimary),
-        labelMedium: GoogleFonts.dmSans(
+        labelMedium: const TextStyle(
             fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5,
             color: textSecondary),
-        labelSmall: GoogleFonts.dmSans(
+        labelSmall: const TextStyle(
             fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8,
             color: textMuted),
       ),
@@ -285,7 +284,7 @@ class AppTheme {
         error: statusDenied,
       ),
       scaffoldBackgroundColor: backgroundDark,
-      textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme),
+      textTheme: ThemeData.dark().textTheme,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,

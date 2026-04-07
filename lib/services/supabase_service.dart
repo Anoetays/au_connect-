@@ -943,7 +943,7 @@ class SupabaseService {
   /// Real-time stream of audit log entries, newest first.
   static Stream<List<Map<String, dynamic>>> streamAuditLogs() {
     return _db
-        .from('audit_logs')
+        .from('audit_log')
         .stream(primaryKey: ['id'])
         .order('created_at', ascending: false);
   }
@@ -958,7 +958,7 @@ class SupabaseService {
     required String targetType,
     String? ipAddress,
   }) async {
-    await _db.from('audit_logs').insert({
+    await _db.from('audit_log').insert({
       'admin_name': adminName,
       'admin_role': adminRole,
       'action_type': actionType,
@@ -1052,12 +1052,30 @@ class SupabaseService {
       return await _db
           .from('offer_letters')
           .select()
-          .eq('applicant_id', uid)
-          .order('created_at', ascending: false)
+          .eq('applicant_user_id', uid)
+          .order('issued_at', ascending: false)
           .limit(1)
           .maybeSingle();
     } catch (e) {
       debugPrint('getMyOfferLetter error: $e');
+      return null;
+    }
+  }
+
+  /// Fetch the current user's most recent rejection letter.
+  static Future<Map<String, dynamic>?> getMyRejectionLetter() async {
+    final uid = currentUserId;
+    if (uid == null) return null;
+    try {
+      return await _db
+          .from('rejection_letters')
+          .select()
+          .eq('applicant_user_id', uid)
+          .order('issued_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('getMyRejectionLetter error: $e');
       return null;
     }
   }
@@ -1147,5 +1165,98 @@ class SupabaseService {
       debugPrint('getApplicantsByCountry error: $e');
       return {};
     }
+  }
+
+  // ── OFFER LETTERS (admin) ─────────────────────────────────────────────────────
+
+  /// Insert an offer letter row for an approved applicant.
+  static Future<void> insertOfferLetter({
+    required String applicationId,
+    required String applicantUserId,
+    required String programme,
+    required String letterContent,
+  }) async {
+    try {
+      await _db.from('offer_letters').insert({
+        'application_id': applicationId,
+        'applicant_user_id': applicantUserId,
+        'programme': programme,
+        'letter_content': letterContent,
+        'issued_at': DateTime.now().toIso8601String(),
+        'is_read': false,
+      });
+    } catch (e) {
+      debugPrint('insertOfferLetter error: $e');
+    }
+  }
+
+  /// Insert a rejection letter row for a rejected applicant.
+  static Future<void> insertRejectionLetter({
+    required String applicationId,
+    required String applicantUserId,
+    required String programme,
+    required String reason,
+    required String letterContent,
+  }) async {
+    try {
+      await _db.from('rejection_letters').insert({
+        'application_id': applicationId,
+        'applicant_user_id': applicantUserId,
+        'programme': programme,
+        'rejection_reason': reason,
+        'letter_content': letterContent,
+        'issued_at': DateTime.now().toIso8601String(),
+        'is_read': false,
+      });
+    } catch (e) {
+      debugPrint('insertRejectionLetter error: $e');
+    }
+  }
+
+  /// Insert an interview row and notify the applicant.
+  static Future<void> scheduleInterview({
+    required String applicationId,
+    required String applicantUserId,
+    required String applicantName,
+    required String programme,
+    required String applicantType,
+    required DateTime scheduledDate,
+    required String format,
+    required String location,
+    required String interviewerName,
+    String? notes,
+  }) async {
+    final uid = currentUserId;
+    await _db.from('interviews').insert({
+      'application_id': applicationId,
+      'applicant_id': applicantUserId,
+      'applicant_name': applicantName,
+      'programme': programme,
+      'applicant_type': applicantType,
+      'scheduled_date': scheduledDate.toIso8601String(),
+      'format': format,
+      'location': location,
+      'interviewer_name': interviewerName,
+      'interviewer_initials': interviewerName.trim().split(' ').take(2)
+          .map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').join(),
+      'status': 'Scheduled',
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (uid != null) 'created_by': uid,
+    });
+    // Notify applicant
+    try {
+      await insertNotificationForUser(
+        recipientId: applicantUserId,
+        type: 'interview',
+        title: 'Interview Scheduled',
+        body: 'Your interview for $programme has been scheduled on '
+            '${scheduledDate.day}/${scheduledDate.month}/${scheduledDate.year} '
+            'via $format${location.isNotEmpty ? " at $location" : ""}.',
+        metadata: {
+          'application_id': applicationId,
+          'scheduled_date': scheduledDate.toIso8601String(),
+        },
+      );
+    } catch (_) {}
   }
 }

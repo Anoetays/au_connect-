@@ -196,6 +196,192 @@ class _InterviewsPageState extends State<InterviewsPage> {
     };
   }
 
+  Future<void> _showScheduleDialog() async {
+    final nameCtrl      = TextEditingController();
+    final progCtrl      = TextEditingController();
+    final locationCtrl  = TextEditingController();
+    final interviewerCtrl = TextEditingController();
+    final notesCtrl     = TextEditingController();
+    String selectedFormat = 'In-Person';
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 7));
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(children: [
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(color: _kRedSoft, borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.event_outlined, size: 16, color: _kRed)),
+            const SizedBox(width: 12),
+            Text('Schedule Interview',
+              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 16)),
+          ]),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Applicant Name *',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.all(12)),
+                  style: GoogleFonts.dmSans(fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: progCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Programme *',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.all(12)),
+                  style: GoogleFonts.dmSans(fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedFormat,
+                  decoration: InputDecoration(
+                    labelText: 'Format',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.all(12)),
+                  style: GoogleFonts.dmSans(fontSize: 13, color: _kDark),
+                  items: ['In-Person', 'Virtual', 'Phone']
+                      .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                      .toList(),
+                  onChanged: (v) { if (v != null) setDlg(() => selectedFormat = v); },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: locationCtrl,
+                  decoration: InputDecoration(
+                    labelText: selectedFormat == 'Virtual' ? 'Meeting Link' : 'Location / Room',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.all(12)),
+                  style: GoogleFonts.dmSans(fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: interviewerCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Interviewer Name *',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.all(12)),
+                  style: GoogleFonts.dmSans(fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: selectedDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      final time = await showTimePicker(
+                        context: ctx,
+                        initialTime: TimeOfDay.fromDateTime(selectedDate),
+                      );
+                      setDlg(() {
+                        selectedDate = time != null
+                            ? DateTime(picked.year, picked.month, picked.day, time.hour, time.minute)
+                            : picked;
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: _kBorder, width: 1.5),
+                      borderRadius: BorderRadius.circular(10)),
+                    child: Row(children: [
+                      const Icon(Icons.calendar_today_outlined, size: 14, color: _kMuted),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}  '
+                        '${selectedDate.hour.toString().padLeft(2,"0")}:'
+                        '${selectedDate.minute.toString().padLeft(2,"0")}',
+                        style: GoogleFonts.dmSans(fontSize: 13, color: _kDark)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: notesCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Notes (optional)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.all(12)),
+                  style: GoogleFonts.dmSans(fontSize: 13),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: GoogleFonts.dmSans())),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kRed, foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9))),
+              onPressed: () async {
+                final name       = nameCtrl.text.trim();
+                final prog       = progCtrl.text.trim();
+                final interviewer = interviewerCtrl.text.trim();
+                if (name.isEmpty || prog.isEmpty || interviewer.isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  await SupabaseService.scheduleInterview(
+                    applicationId: '',
+                    applicantUserId: '',
+                    applicantName: name,
+                    programme: prog,
+                    applicantType: '',
+                    scheduledDate: selectedDate,
+                    format: selectedFormat,
+                    location: locationCtrl.text.trim(),
+                    interviewerName: interviewer,
+                    notes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : null,
+                  );
+                  final user = SupabaseService.currentUser;
+                  await SupabaseService.insertAuditLog(
+                    adminName: user?.email ?? 'Admin',
+                    adminRole: 'Admin',
+                    actionType: 'Interview Scheduled',
+                    description: 'Interview scheduled for $name — $prog',
+                    targetId: name,
+                    targetType: 'Interview',
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Interview scheduled for $name'),
+                      backgroundColor: _kGreen));
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Error: $e'), backgroundColor: _kRed));
+                  }
+                }
+              },
+              child: Text('Schedule', style: GoogleFonts.dmSans(fontWeight: FontWeight.w600))),
+          ],
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+    progCtrl.dispose();
+    locationCtrl.dispose();
+    interviewerCtrl.dispose();
+    notesCtrl.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(color: _kRed));
@@ -237,7 +423,7 @@ class _InterviewsPageState extends State<InterviewsPage> {
       const SizedBox(width: 12),
       _OutlineBtn(icon: Icons.download_outlined, label: 'Export Schedule'),
       const SizedBox(width: 8),
-      _PrimaryBtn(icon: Icons.add, label: 'Schedule Interview'),
+      _PrimaryBtn(icon: Icons.add, label: 'Schedule Interview', onTap: _showScheduleDialog),
     ]);
   }
 
@@ -799,7 +985,8 @@ class _TH extends StatelessWidget {
 class _PrimaryBtn extends StatefulWidget {
   final String label;
   final IconData icon;
-  const _PrimaryBtn({required this.label, required this.icon});
+  final VoidCallback? onTap;
+  const _PrimaryBtn({required this.label, required this.icon, this.onTap});
   @override State<_PrimaryBtn> createState() => _PrimaryBtnState();
 }
 class _PrimaryBtnState extends State<_PrimaryBtn> {
@@ -809,25 +996,28 @@ class _PrimaryBtnState extends State<_PrimaryBtn> {
     cursor: SystemMouseCursors.click,
     onEnter: (_) => setState(() => _hover = true),
     onExit:  (_) => setState(() => _hover = false),
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      transform: Matrix4.translationValues(0, _hover ? -1 : 0, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [_kRed, _kRedDeep]),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [BoxShadow(
-          color: const Color(0x52C41E3A),
-          blurRadius: _hover ? 20 : 14, offset: const Offset(0, 4))],
+    child: GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        transform: Matrix4.translationValues(0, _hover ? -1 : 0, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [_kRed, _kRedDeep]),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [BoxShadow(
+            color: const Color(0x52C41E3A),
+            blurRadius: _hover ? 20 : 14, offset: const Offset(0, 4))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(widget.icon, size: 13, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(widget.label, style: GoogleFonts.dmSans(
+            fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
+        ]),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(widget.icon, size: 13, color: Colors.white),
-        const SizedBox(width: 6),
-        Text(widget.label, style: GoogleFonts.dmSans(
-          fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
-      ]),
     ),
   );
 }

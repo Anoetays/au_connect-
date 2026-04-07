@@ -1,5 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
-
+import 'package:http/http.dart' as http;
 import 'package:au_connect/models/application.dart';
 import 'package:au_connect/models/document.dart';
 import 'package:au_connect/models/profile.dart';
@@ -7,6 +8,8 @@ import 'package:au_connect/services/application_service.dart';
 import 'package:au_connect/services/document_service.dart';
 import 'package:au_connect/services/profile_service.dart';
 import 'package:au_connect/services/supabase_client_provider.dart';
+
+const String _backendUrl = 'http://localhost:3000/api';
 
 class AdminService {
   static final _client = SupabaseClientProvider.client;
@@ -118,67 +121,172 @@ class AdminService {
     }
   }
 
-  static Stream<List<Map<String, dynamic>>> streamProgrammes() {
-    return _client.from('programmes').stream(primaryKey: ['id']).order('name', ascending: true);
-  }
+  // ─────────────────────────────────────────────────────────────
+  // NEW ADVANCED ADMIN FEATURES (from backend API)
+  // ─────────────────────────────────────────────────────────────
 
-  static Future<void> insertProgramme({
-    required String name,
-    required String faculty,
-    required String level,
-    required int durationYears,
-  }) async {
+  /// Get admin dashboard statistics
+  static Future<Map<String, dynamic>> getDashboardStats() async {
     try {
-      await _client.rpc('admin_insert_programme', params: {
-        'p_name': name,
-        'p_faculty': faculty,
-        'p_level': level,
-        'p_duration_years': durationYears,
-        'p_status': 'Active',
-      });
-    } catch (_) {
-      try {
-        // Backward compatibility if RPC is not yet deployed.
-        await _client.from('programmes').insert({
-          'name': name,
-          'faculty': faculty,
-          'level': level,
-          'duration_years': durationYears,
-          'status': 'Active',
-        });
-      } catch (e) {
-        debugPrint('insertProgramme error: $e');
-        throw Exception('Failed to add programme: $e');
+      final response = await http.get(
+        Uri.parse('$_backendUrl/admin/dashboard'),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'] ?? {};
       }
+      throw Exception('Failed to fetch dashboard stats');
+    } catch (e) {
+      debugPrint('getDashboardStats error: $e');
+      throw Exception('Dashboard stats error: $e');
     }
   }
 
-  static Future<void> updateProgramme(
-    String id, {
-    required String name,
-    required String faculty,
-    required String level,
-    required int durationYears,
+  /// Get all applications with filtering
+  static Future<Map<String, dynamic>> getApplicationsFiltered({
+    int offset = 0,
+    int limit = 20,
+    String? status,
+    String? programme,
   }) async {
     try {
-      await _client.from('programmes').update({
-        'name': name,
-        'faculty': faculty,
-        'level': level,
-        'duration_years': durationYears,
-      }).eq('id', id);
+      String query = '$_backendUrl/admin/applications?offset=$offset&limit=$limit';
+      if (status != null) query += '&status=$status';
+      if (programme != null) query += '&programme=$programme';
+
+      final response = await http.get(Uri.parse(query));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      throw Exception('Failed to fetch applications');
     } catch (e) {
-      debugPrint('updateProgramme error: $e');
-      throw Exception('Failed to update programme: $e');
+      debugPrint('getApplicationsFiltered error: $e');
+      throw Exception('Get applications error: $e');
     }
   }
 
-  static Future<void> deleteProgramme(String id) async {
+  /// Get detailed application with documents
+  static Future<Map<String, dynamic>> getApplicationDetail(int appId) async {
     try {
-      await _client.from('programmes').delete().eq('id', id);
+      final response = await http.get(
+        Uri.parse('$_backendUrl/admin/applications/$appId'),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'] ?? {};
+      }
+      throw Exception('Failed to fetch application detail');
     } catch (e) {
-      debugPrint('deleteProgramme error: $e');
-      throw Exception('Failed to delete programme: $e');
+      debugPrint('getApplicationDetail error: $e');
+      throw Exception('Get application detail error: $e');
+    }
+  }
+
+  /// Review/update application status
+  static Future<Map<String, dynamic>> reviewApplication({
+    required int appId,
+    required String status,
+    String? reviewNotes,
+    String? reviewedBy,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_backendUrl/admin/applications/$appId/review'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'status': status,
+          'reviewNotes': reviewNotes,
+          'reviewedBy': reviewedBy ?? 'admin',
+        }),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'] ?? {};
+      }
+      throw Exception('Failed to review application');
+    } catch (e) {
+      debugPrint('reviewApplication error: $e');
+      throw Exception('Review application error: $e');
+    }
+  }
+
+  /// Verify document status
+  static Future<Map<String, dynamic>> verifyDocument({
+    required String docId,
+    required String status,
+    String? verificationNotes,
+    String? verifiedBy,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_backendUrl/admin/documents/$docId/verify'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'status': status,
+          'verificationNotes': verificationNotes,
+          'verifiedBy': verifiedBy ?? 'admin',
+        }),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'] ?? {};
+      }
+      throw Exception('Failed to verify document');
+    } catch (e) {
+      debugPrint('verifyDocument error: $e');
+      throw Exception('Verify document error: $e');
+    }
+  }
+
+  /// Send bulk notifications
+  static Future<Map<String, dynamic>> sendBulkNotifications({
+    required String recipientRole,
+    required String type,
+    required String title,
+    String? body,
+    Map<String, dynamic>? filters,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_backendUrl/admin/notifications/bulk'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'recipient_role': recipientRole,
+          'type': type,
+          'title': title,
+          'body': body,
+          'filters': filters,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      throw Exception('Failed to send notifications');
+    } catch (e) {
+      debugPrint('sendBulkNotifications error: $e');
+      throw Exception('Send bulk notifications error: $e');
+    }
+  }
+
+  /// Export applications report
+  static Future<String> exportReport({
+    required String format, // 'json' or 'csv'
+    String? status,
+    String? programme,
+  }) async {
+    try {
+      String query = '$_backendUrl/admin/reports/export?format=$format';
+      if (status != null) query += '&status=$status';
+      if (programme != null) query += '&programme=$programme';
+
+      final response = await http.get(Uri.parse(query));
+      if (response.statusCode == 200) {
+        return response.body;
+      }
+      throw Exception('Failed to export report');
+    } catch (e) {
+      debugPrint('exportReport error: $e');
+      throw Exception('Export report error: $e');
     }
   }
 }

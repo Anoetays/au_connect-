@@ -22,37 +22,8 @@ create index if not exists idx_notifications_recipient_role on notifications(rec
 create index if not exists idx_notifications_created_at     on notifications(created_at desc);
 
 -- ── 2. RLS POLICIES ───────────────────────────────────────────────────────────
-alter table notifications enable row level security;
-
--- Admins can read all admin-role notifications
-create policy "Admins read admin notifications"
-  on notifications for select
-  using (
-    recipient_role = 'admin'
-    -- Optionally restrict to authenticated admin users:
-    -- and auth.uid() in (select user_id from profiles where role = 'admin')
-  );
-
--- Applicants can only read their own notifications
-create policy "Applicants read own notifications"
-  on notifications for select
-  using (recipient_id = auth.uid());
-
--- Any authenticated user can insert notifications (triggers use service role)
-create policy "Authenticated users can insert notifications"
-  on notifications for insert
-  with check (auth.role() = 'authenticated');
-
--- Users can update their own notification's is_read flag
-create policy "Users can mark own notifications read"
-  on notifications for update
-  using (recipient_id = auth.uid() or recipient_role = 'admin')
-  with check (true);
-
--- Users can delete their own notifications
-create policy "Users can delete own notifications"
-  on notifications for delete
-  using (recipient_id = auth.uid() or recipient_role = 'admin');
+-- NOTE: Backend manages notifications, so RLS is DISABLED for service role access
+alter table notifications disable row level security;
 
 -- ── 3. NEW APPLICATION → ADMIN NOTIFICATION TRIGGER ──────────────────────────
 -- Automatically notifies admins when a new application is submitted
@@ -112,10 +83,70 @@ begin
 end;
 $$;
 
+-- Fires when an application's status is set to 'submitted' (not on draft creation)
+create or replace function notify_admins_on_application_submitted()
+returns trigger language plpgsql security definer as $$
+declare
+  v_hour int;
+  v_greeting text;
+  v_type text;
+  v_name text;
+  v_prog text;
+  v_country text;
+  v_body text;
+begin
+  -- Only fire when status transitions to 'submitted'
+  if NEW.status <> 'submitted' or OLD.status = 'submitted' then
+    return NEW;
+  end if;
+
+  v_hour := extract(hour from now() at time zone 'Africa/Harare')::int;
+  v_greeting := case
+    when v_hour >= 5  and v_hour < 12 then 'Good morning'
+    when v_hour >= 12 and v_hour < 17 then 'Good afternoon'
+    else 'Good evening'
+  end;
+
+  v_type    := coalesce(NEW.type, 'Local');
+  v_name    := coalesce(NEW.applicant_name, 'An applicant');
+  v_prog    := coalesce(NEW.programme, 'an unspecified programme');
+  v_country := coalesce(NEW.nationality, '');
+
+  v_body := case
+    when lower(v_type) like '%international%' then
+      v_greeting || '. A new international applicant'
+      || case when v_country <> '' then ' from ' || v_country else '' end
+      || ' has submitted an application for ' || v_prog || '.'
+    when lower(v_type) like '%master%' or lower(v_type) like '%postgrad%' then
+      'A new postgraduate applicant has submitted an application for ' || v_prog || '.'
+    else
+      'A new local applicant, ' || v_name || ', has submitted an application for ' || v_prog || '.'
+  end;
+
+  insert into notifications (recipient_role, type, title, body, metadata)
+  values (
+    'admin',
+    'new_application',
+    'New Application Submitted — ' || v_name,
+    v_body,
+    jsonb_build_object(
+      'application_id', NEW.id::text,
+      'applicant_id',   coalesce(NEW.user_id::text, ''),
+      'type',           v_type,
+      'programme',      v_prog,
+      'nationality',    v_country
+    )
+  );
+
+  return NEW;
+end;
+$$;
+
 drop trigger if exists trg_new_application_notify on applications;
-create trigger trg_new_application_notify
-  after insert on applications
-  for each row execute function notify_admins_on_new_application();
+drop trigger if exists trg_application_submitted_notify on applications;
+create trigger trg_application_submitted_notify
+  after update on applications
+  for each row execute function notify_admins_on_application_submitted();
 
 -- ── 4. VISA PROGRESS TABLE ────────────────────────────────────────────────────
 create table if not exists visa_progress (
@@ -127,6 +158,7 @@ create table if not exists visa_progress (
 
 alter table visa_progress enable row level security;
 
+drop policy if exists "Users manage own visa progress" on visa_progress;
 create policy "Users manage own visa progress"
   on visa_progress for all
   using (user_id = auth.uid())
@@ -217,7 +249,7 @@ end $$;
 create table if not exists payments (
   id             uuid default gen_random_uuid() primary key,
   user_id        uuid references auth.users(id) on delete cascade,
-  application_id uuid references applications(id) on delete set null,
+  application_id bigint references applications(id) on delete set null,
   amount         numeric(10,2) not null default 25,
   method         text,
   reference      text,
@@ -228,24 +260,14 @@ create table if not exists payments (
 
 create index if not exists idx_payments_user_id on payments(user_id);
 
-alter table payments enable row level security;
-
-drop policy if exists "Users read own payments"   on payments;
-drop policy if exists "Users insert own payments" on payments;
-
-create policy "Users read own payments"
-  on payments for select
-  using (user_id = auth.uid());
-
-create policy "Users insert own payments"
-  on payments for insert
-  with check (user_id = auth.uid());
+-- Backend manages this table, so RLS is DISABLED for service role access
+alter table payments disable row level security;
 
 -- ── 6. DOCUMENTS TABLE ────────────────────────────────────────────────────────
 create table if not exists documents (
   id                  uuid default gen_random_uuid() primary key,
   user_id             uuid references auth.users(id) on delete cascade,
-  application_id      uuid references applications(id) on delete set null,
+  application_id      bigint references applications(id) on delete set null,
   file_name           text not null,
   document_type       text not null,
   verification_status text not null default 'Pending',
@@ -261,6 +283,11 @@ create index if not exists idx_documents_uploaded_at    on documents(uploaded_at
 
 alter table documents enable row level security;
 
+drop policy if exists "Users read own documents"    on documents;
+drop policy if exists "Users insert own documents"  on documents;
+drop policy if exists "Admins read all documents"   on documents;
+drop policy if exists "Admins update document status" on documents;
+
 -- Applicants can read their own documents
 create policy "Users read own documents"
   on documents for select
@@ -271,7 +298,7 @@ create policy "Users insert own documents"
   on documents for insert
   with check (user_id = auth.uid());
 
--- Admins can read all documents (use service role key on backend, or adjust as needed)
+-- Admins can read all documents
 create policy "Admins read all documents"
   on documents for select
   using (
@@ -292,3 +319,62 @@ create policy "Admins update document status"
         and profiles.role = 'admin'
     )
   );
+
+-- ── 7. CONVERSATIONS TABLE ───────────────────────────────────────────────────
+create table if not exists conversations (
+  id                uuid default gen_random_uuid() primary key,
+  participant1_id   uuid references auth.users(id) on delete cascade,
+  participant2_id   uuid references auth.users(id) on delete cascade,
+  created_at        timestamptz default now(),
+  updated_at        timestamptz default now()
+);
+
+create index if not exists idx_conversations_participant1 on conversations(participant1_id);
+create index if not exists idx_conversations_participant2 on conversations(participant2_id);
+create index if not exists idx_conversations_updated_at   on conversations(updated_at desc);
+
+-- Backend manages this table, so RLS is DISABLED for service role access
+alter table conversations disable row level security;
+
+-- ── 8. MESSAGES TABLE ────────────────────────────────────────────────────────
+create table if not exists messages (
+  id                uuid default gen_random_uuid() primary key,
+  conversation_id   uuid references conversations(id) on delete cascade,
+  sender_id         uuid references auth.users(id) on delete cascade,
+  recipient_id      uuid references auth.users(id) on delete cascade,
+  content           text not null,
+  type              text default 'text' check (type in ('text', 'file', 'document')),
+  file_url          text,
+  file_name         text,
+  is_read           boolean default false,
+  sent_at           timestamptz default now(),
+  created_at        timestamptz default now()
+);
+
+create index if not exists idx_messages_conversation  on messages(conversation_id);
+create index if not exists idx_messages_sender        on messages(sender_id);
+create index if not exists idx_messages_recipient     on messages(recipient_id);
+create index if not exists idx_messages_is_read       on messages(is_read);
+create index if not exists idx_messages_sent_at       on messages(sent_at desc);
+
+-- Backend manages this table, so RLS is DISABLED for service role access
+alter table messages disable row level security;
+
+-- ── 9. ADMIN ACTIONS LOG TABLE ───────────────────────────────────────────────
+create table if not exists admin_actions (
+  id               uuid default gen_random_uuid() primary key,
+  admin_id         text not null,  -- admin user ID or name
+  action           text not null,  -- 'review_application', 'approve_document', 'send_notification', etc
+  application_id   bigint references applications(id) on delete set null,
+  document_id      bigint references documents(id) on delete set null,
+  details          jsonb default '{}',  -- action-specific data
+  created_at       timestamptz default now()
+);
+
+create index if not exists idx_admin_actions_admin_id       on admin_actions(admin_id);
+create index if not exists idx_admin_actions_application_id on admin_actions(application_id);
+create index if not exists idx_admin_actions_created_at     on admin_actions(created_at desc);
+
+-- Backend manages this table, so RLS is DISABLED
+alter table admin_actions disable row level security;
+
