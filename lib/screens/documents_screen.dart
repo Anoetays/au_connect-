@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:au_connect/services/supabase_service.dart';
 import 'package:au_connect/theme/app_theme.dart';
+import 'package:au_connect/widgets/document_viewer_dialog.dart';
 
 // ── colour tokens ─────────────────────────────────────────────────────────────
 const _kRed     = AppTheme.primaryCrimson;
@@ -504,64 +505,22 @@ class _DocumentsPageState extends State<DocumentsPage> {
                   : _selected.remove(e.value.id)),
               onAction: (action, docId, newStatus) async {
                 if (action == 'Viewed') {
-                  // Find the file_url from the raw rows
                   final row = _rows.firstWhere(
                     (r) => r['id']?.toString() == docId,
                     orElse: () => {},
                   );
                   final url = row['file_url'] as String? ?? '';
+                  final fileName = row['file_name']?.toString() ?? 'Document';
+                  if (!mounted) return;
                   if (url.isNotEmpty) {
-                    final uri = Uri.tryParse(url);
-                    if (uri != null) {
-                      // Show in dialog so user can copy or open
-                      if (!mounted) return;
-                      showDialog(
-                        context: context,
-                        builder: (dlgCtx) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                          title: Text('View Document',
-                              style: GoogleFonts.dmSerifDisplay(fontSize: 17)),
-                          content: Column(mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(row['file_name']?.toString() ?? '',
-                                style: GoogleFonts.dmSans(
-                                    fontSize: 13, fontWeight: FontWeight.w600,
-                                    color: _kDark)),
-                              const SizedBox(height: 8),
-                              Text('File URL (copy to open in browser):',
-                                style: GoogleFonts.dmSans(fontSize: 11, color: _kMuted)),
-                              const SizedBox(height: 4),
-                              SelectableText(url,
-                                style: GoogleFonts.dmSans(fontSize: 11, color: _kBlue)),
-                            ]),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(dlgCtx),
-                              child: Text('Close',
-                                  style: GoogleFonts.dmSans(color: _kMuted))),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.copy, size: 14),
-                              label: const Text('Copy URL'),
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: _kRed,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0),
-                              onPressed: () {
-                                Navigator.pop(dlgCtx);
-                                Clipboard.setData(ClipboardData(text: url));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('URL copied to clipboard')));
-                              }),
-                          ],
-                        ),
-                      );
-                    }
+                    DocumentViewerDialog.show(
+                      context,
+                      fileUrl: url,
+                      fileName: fileName,
+                    );
                   } else {
-                    if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No file URL available for this document.')));
+                      const SnackBar(content: Text('No file URL available for this document.')));
                   }
                   return;
                 }
