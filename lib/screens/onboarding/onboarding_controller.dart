@@ -45,8 +45,90 @@ class OnboardingController extends ChangeNotifier {
 
   void goTo(int newIndex) {
     if (newIndex < 0 || newIndex >= screenIds.length) return;
+    // Fire-and-forget: persist the current screen's data before moving on.
+    // Errors are logged but never block navigation.
+    _autosaveCurrentScreen();
     index = newIndex;
     notifyListeners();
+  }
+
+  /// Maps the current screen index to the fields that should be saved when
+  /// the user navigates away from it.
+  void _autosaveCurrentScreen() {
+    switch (index) {
+      case 3: // country
+        _silentSave({'country': state.country});
+        break;
+      case 4: // language
+        _silentSave({'language': state.language});
+        break;
+      case 5: // name in language
+        _silentSave({'preferred_name': state.preferredName});
+        break;
+      case 9: // gender
+        _silentSave({'gender': state.gender});
+        break;
+      case 10: // date of birth
+        if (state.dob.isNotEmpty) _silentSave({'date_of_birth': state.dob});
+        break;
+      case 11: // study level
+        _silentSave({'study_level': state.studyLevel});
+        break;
+      case 12: // field of study
+        _silentSave({'field_of_study': state.field});
+        break;
+      case 13: // programme
+        _silentSave({'programme': state.programme});
+        break;
+      case 14: // a-level check
+        if (state.aLevelQualified.isNotEmpty) {
+          _silentSave({'a_level_qualified': state.aLevelQualified == 'yes'});
+        }
+        break;
+      case 16: // academic
+        _silentSave({
+          'school_attended': state.school,
+          'grades': state.grades,
+        });
+        break;
+      case 17: // financing
+        _silentSave({'financing': state.financing});
+        break;
+      case 18: // residency
+        _silentSave({
+          'resides_in_zimbabwe': state.residesInZimbabwe,
+          'applicant_type': state.applicantType,
+        });
+        break;
+      case 19: // accommodation
+        _silentSave({'accommodation': state.accommodation});
+        break;
+      case 20: // disability
+        _silentSave({
+          'disability': state.disability,
+          'disability_detail': state.disabilityDetail,
+        });
+        break;
+      case 22: // next of kin
+        _silentSave({
+          'kin_name': state.kinName,
+          'kin_relationship': state.kinRel,
+          'kin_phone': state.kinPhone,
+        });
+        break;
+      case 23: // payment
+        _silentSave({'payment_method': state.paymentMethod});
+        break;
+      default:
+        break;
+    }
+  }
+
+  /// Saves fields without blocking navigation and without throwing.
+  void _silentSave(Map<String, dynamic> fields) {
+    OnboardingApplicationService.saveFields(fields).catchError((e) {
+      debugPrint('Auto-save failed for fields ${fields.keys}: $e');
+    });
   }
 
   void next() => goTo(index + 1);
