@@ -62,6 +62,19 @@ DateTime _dt(dynamic v) {
   return DateTime.tryParse(v.toString()) ?? DateTime.now();
 }
 
+/// Resolves the best available display name from a Supabase applications row.
+String _resolveApplicantName(Map<String, dynamic> m) {
+  final full = _s(m['full_name']).trim();
+  if (full.isNotEmpty) return full;
+  final first = _s(m['first_name']).trim();
+  final last  = _s(m['last_name']).trim();
+  final combined = '$first $last'.trim();
+  if (combined.isNotEmpty) return combined;
+  final email = _s(m['email']);
+  if (email.isNotEmpty) return email.split('@').first;
+  return 'Unknown Applicant';
+}
+
 // Returns 1–2 uppercase initials from the admin's name or email.
 String _adminInitials() {
   final user = SupabaseService.currentUser;
@@ -121,40 +134,61 @@ class _AppEntry {
   });
 
   factory _AppEntry.fromMap(Map<String, dynamic> m) {
-    final name = _s(m['applicant_name']).trim();
+    // Resolve name: prefer full_name, fall back to first+last, then email
+    String name = _s(m['full_name']).trim();
+    if (name.isEmpty) {
+      final first = _s(m['first_name']).trim();
+      final last  = _s(m['last_name']).trim();
+      name = '$first $last'.trim();
+    }
+    if (name.isEmpty) name = _s(m['email']).split('@').first;
+
     final parts = name.split(RegExp(r'\s+'));
     final initials = parts.length >= 2
         ? '${parts.first[0]}${parts.last[0]}'.toUpperCase()
         : name.isNotEmpty ? name[0].toUpperCase() : '?';
 
-    final statusStr = _s(m['status'], 'Pending');
-    final status = statusStr == 'Approved'    ? _AppStatus.approved
-        : statusStr == 'Rejected'             ? _AppStatus.rejected
-        : statusStr == 'Under Review'         ? _AppStatus.review
+    // Status — stored lowercase in DB
+    final statusStr = _s(m['status'], 'pending').toLowerCase();
+    final status = statusStr == 'approved'    ? _AppStatus.approved
+        : statusStr == 'rejected'             ? _AppStatus.rejected
+        : (statusStr == 'review' || statusStr == 'under_review') ? _AppStatus.review
         : _AppStatus.pending;
 
-    final submittedAt = _dt(m['submitted_at']);
+    final submittedAt = _dt(m['submitted_at'] ?? m['created_at']);
 
-    final type = _s(m['type']);
+    // Type — stored as applicant_type in DB
+    final type = _s(m['applicant_type'] ?? m['type']);
     Color grad1, grad2;
     switch (type.toLowerCase()) {
       case 'international': grad1 = const Color(0xFF3A5FCC); grad2 = const Color(0xFF2040AA); break;
+      case 'masters':
+      case 'postgraduate':
       case 'masters / pg':  grad1 = const Color(0xFF1E8A4A); grad2 = const Color(0xFF145E32); break;
       case 'transfer':      grad1 = const Color(0xFF7040BB); grad2 = const Color(0xFF4E2B88); break;
       case 're-admission':  grad1 = const Color(0xFFC07010); grad2 = const Color(0xFF8A4E0A); break;
       default:              grad1 = _kRed;                   grad2 = _kRedDeep;
     }
 
+    // App ID — use application_id column, fall back to short UUID suffix
+    final rawId = _s(m['application_id']);
+    final uuid  = _s(m['id']);
+    final appId = rawId.isNotEmpty
+        ? rawId
+        : uuid.isNotEmpty
+            ? 'AU-${uuid.substring(0, 8).toUpperCase()}'
+            : 'AU-${DateTime.now().year}-????';
+
     return _AppEntry(
-      id:        _s(m['id']),
+      id:        uuid,
       userId:    _s(m['user_id']),
       initials:  initials,
-      name:      name,
-      appId:     _s(m['application_code'] ?? m['applicant_id'], 'AU-????'),
+      name:      name.isEmpty ? 'Unknown Applicant' : name,
+      appId:     appId,
       type:      type,
-      country:   _s(m['nationality']),
+      country:   _s(m['country'] ?? m['nationality']),
       programme: _s(m['programme']),
-      faculty:   _s(m['faculty']),
+      faculty:   _s(m['field_of_study'] ?? m['faculty']),
       submitted: _fmtDate(submittedAt),
       timeAgo:   _timeAgo(submittedAt),
       status:    status,
@@ -3237,14 +3271,16 @@ class _StudentCard extends StatelessWidget {
             shape: BoxShape.circle,
             gradient: LinearGradient(colors: [_kGreen, _kGreen.withValues(alpha: 0.7)])),
           child: Center(child: Text(
-            (student['applicant_name'] as String? ?? '')[0].toUpperCase(),
+            _resolveApplicantName(student).isNotEmpty
+                ? _resolveApplicantName(student)[0].toUpperCase()
+                : '?',
             style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(student['applicant_name'] as String? ?? '', style: GoogleFonts.dmSans(
+            Text(_resolveApplicantName(student), style: GoogleFonts.dmSans(
               fontSize: 16, fontWeight: FontWeight.w600, color: _kDark)),
             Text(student['programme'] as String? ?? '', style: GoogleFonts.dmSans(
               fontSize: 14, color: _kMuted)),

@@ -6,6 +6,13 @@ class OnboardingApplicationService {
 
   static String? get currentUserId => _supabase.auth.currentUser?.id;
 
+  /// Generate a human-readable application ID, e.g. AU-2026-4821
+  static String _generateAppId() {
+    final year = DateTime.now().year;
+    final rand = 1000 + (DateTime.now().millisecondsSinceEpoch % 9000);
+    return 'AU-$year-$rand';
+  }
+
   /// Create or get application record for current user
   static Future<Map<String, dynamic>> getOrCreateApplication() async {
     try {
@@ -20,13 +27,29 @@ class OnboardingApplicationService {
           .maybeSingle();
 
       if (existing != null) {
+        // Back-fill application_id if missing on an existing record
+        if (existing['application_id'] == null) {
+          final newId = _generateAppId();
+          await _supabase
+              .from('applications')
+              .update({'application_id': newId})
+              .eq('user_id', userId);
+          return {...existing, 'application_id': newId};
+        }
         return existing;
       }
 
-      // Create new
+      // Create new with generated application_id
+      final user = _supabase.auth.currentUser;
       final created = await _supabase
           .from('applications')
-          .insert({'user_id': userId, 'status': 'draft'})
+          .insert({
+            'user_id': userId,
+            'email': user?.email,
+            'application_id': _generateAppId(),
+            'status': 'draft',
+            'created_at': DateTime.now().toIso8601String(),
+          })
           .select()
           .single();
 
