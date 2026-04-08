@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:au_connect/screens/onboarding_dashboard_screen.dart';
 import 'package:au_connect/widgets/primary_button.dart';
 import 'onboarding_scope.dart';
 
@@ -128,7 +129,16 @@ class SuccessScreen extends StatelessWidget {
               ],
 
               const SizedBox(height: 20),
-              PrimaryButton(label: 'View Application Status →', onTap: () => c.goTo(26)),
+              PrimaryButton(
+                label: 'View Application Status →',
+                onTap: () => Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const OnboardingDashboardScreen(),
+                  ),
+                  (route) => false,
+                ),
+              ),
               const SizedBox(height: 16),
             ],
           ),
