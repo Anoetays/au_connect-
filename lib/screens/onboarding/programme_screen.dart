@@ -15,7 +15,18 @@ class ProgrammeScreen extends StatelessWidget {
     final c = OnboardingScope.of(context);
     final programmes = c.currentProgrammes();
     return OnboardingShell(
-      footer: PrimaryButton(label: 'Continue →', isDisabled: c.state.programme.isEmpty, onTap: c.state.programme.isEmpty ? null : () => c.goTo(14)),
+      footer: PrimaryButton(
+        label: 'Continue →',
+        isDisabled: c.state.programme.isEmpty,
+        onTap: c.state.programme.isEmpty
+            ? null
+            : () {
+                // Undergraduate needs A-Level check (index 14).
+                // Masters and Postgraduate skip straight to Academic history (index 16).
+                final isUndergrad = c.state.studyLevel == 'Undergraduate';
+                c.goTo(isUndergrad ? 14 : 16);
+              },
+      ),
       child: Column(
         children: [
           CrimsonHeader(icon: '🧭', tag: 'Application • Step 4b', title: 'Choose a Programme', subtitle: 'Select the programme you wish to apply for', onBack: c.back),

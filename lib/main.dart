@@ -32,6 +32,7 @@ import 'package:au_connect/screens/profile_settings_screen.dart';
 import 'package:au_connect/screens/visa_application_screen.dart';
 import 'package:au_connect/screens/visa/visa_guidance_screen.dart';
 import 'package:au_connect/screens/postgrad_masters_flows.dart';
+import 'package:au_connect/screens/intro_video_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 
@@ -152,8 +153,9 @@ class _AuConnectAppState extends State<AuConnectApp>
         Locale('pt'),
         Locale('sw'),
       ],
-      initialRoute: '/applicant_sign_up',
+      initialRoute: '/intro',
       routes: {
+        '/intro': (context) => const IntroVideoScreen(),
         '/': (context) => const WelcomeScreen(),
         '/login': (context) => const LoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),

@@ -97,3 +97,90 @@ const Map<String, Map<String, dynamic>> kProgrammes = {
         'Do you have at least 2 A-Level passes including a theology-related subject?',
   },
 };
+
+/// Masters programmes per field
+const Map<String, Map<String, dynamic>> kMastersProgrammes = {
+  'Technology': {
+    'programmes': [
+      'MSc Computer Science',
+      'MSc Artificial Intelligence',
+      'MSc Software Engineering',
+      'MSc Information Technology',
+      'MSc Data Science',
+    ],
+    'requirement':
+        'A Bachelor\'s degree (minimum 2.2) in a relevant technology or science field.',
+  },
+  'HealthScience': {
+    'programmes': [
+      'MSc Public Health',
+      'MSc Medical Laboratory Science',
+      'MSc Nursing Science',
+      'MSc Social Work',
+      'MSc Agriscience',
+    ],
+    'requirement':
+        'A Bachelor\'s degree (minimum 2.2) in a health science or related field.',
+  },
+  'Business': {
+    'programmes': [
+      'MBA (Master of Business Administration)',
+      'MSc Accounting',
+      'MSc Economics',
+      'MSc Human Resource Management',
+      'MSc Marketing',
+    ],
+    'requirement':
+        'A Bachelor\'s degree (minimum 2.2) in a business or related field.',
+  },
+  'Theology': {
+    'programmes': [
+      'Master of Theology (MTh)',
+      'MTh Biblical Studies',
+      'MTh Religious Education',
+      'MTh Divinity',
+    ],
+    'requirement':
+        'A Bachelor\'s degree in Theology, Divinity, or a related field.',
+  },
+};
+
+/// Postgraduate diploma/certificate programmes per field
+const Map<String, Map<String, dynamic>> kPostgradProgrammes = {
+  'Technology': {
+    'programmes': [
+      'Postgraduate Diploma in Information Technology',
+      'Postgraduate Diploma in Computer Science',
+      'Postgraduate Diploma in Software Engineering',
+    ],
+    'requirement':
+        'A Bachelor\'s degree in a relevant field or equivalent professional experience.',
+  },
+  'HealthScience': {
+    'programmes': [
+      'Postgraduate Diploma in Public Health',
+      'Postgraduate Diploma in Social Work',
+      'Postgraduate Diploma in Health Services Management',
+    ],
+    'requirement':
+        'A Bachelor\'s degree in a health science or related field.',
+  },
+  'Business': {
+    'programmes': [
+      'Postgraduate Diploma in Business Management',
+      'Postgraduate Diploma in Accounting',
+      'Postgraduate Diploma in Human Resource Management',
+    ],
+    'requirement':
+        'A Bachelor\'s degree in a business or related field.',
+  },
+  'Theology': {
+    'programmes': [
+      'Postgraduate Diploma in Theology',
+      'Postgraduate Diploma in Biblical Studies',
+      'Postgraduate Diploma in Religious Education',
+    ],
+    'requirement':
+        'A Bachelor\'s degree in Theology or a related field.',
+  },
+};

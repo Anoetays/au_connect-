@@ -52,6 +52,7 @@ dependencies:
   get: ^4.6.5
   provider: ^6.0.0
   google_generative_ai: ^0.4.3
+  video_player: ^2.9.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -75,6 +76,9 @@ flutter:
   uses-material-design: true
   generate: true
   
+
+  assets:
+    - assets/videos/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

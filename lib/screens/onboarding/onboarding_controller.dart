@@ -114,11 +114,24 @@ class OnboardingController extends ChangeNotifier {
   Map<String, String> nameLabels() =>
       kNameLabels[state.language] ?? kNameLabels['English']!;
 
-  List<String> currentProgrammes() =>
-      List<String>.from(kProgrammes[state.field]!['programmes'] as List);
+  Map<String, dynamic> _levelProgrammeData() {
+    final field = state.field;
+    if (state.studyLevel == 'Masters') {
+      return kMastersProgrammes[field] ?? kProgrammes[field]!;
+    } else if (state.studyLevel == 'Postgraduate') {
+      return kPostgradProgrammes[field] ?? kProgrammes[field]!;
+    }
+    return kProgrammes[field]!;
+  }
 
-  String currentRequirement() => kProgrammes[state.field]!['requirement'] as String;
-  String currentALevelMsg() => kProgrammes[state.field]!['aLevelMsg'] as String;
+  List<String> currentProgrammes() =>
+      List<String>.from(_levelProgrammeData()['programmes'] as List);
+
+  String currentRequirement() =>
+      _levelProgrammeData()['requirement'] as String;
+
+  String currentALevelMsg() =>
+      (kProgrammes[state.field]?['aLevelMsg'] as String?) ?? '';
 
   // Save personal info (step 2: register)
   Future<void> savePersonalInfo() async {
