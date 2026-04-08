@@ -18,9 +18,7 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# The .vscode folder contains launch configuration and tasks you may wish to be included in version control
 #.vscode/
 
 # Flutter/Dart/Pub related
@@ -44,9 +42,46 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Environment variables
-# .env is intentionally committed so cloners can run the project immediately
-# .env
+# Environment variables (keep .env tracked for setup, but exclude sensitive data)
+.env.local
+.env.*.local
+
+# Node.js / Backend
+server/node_modules/
+server/npm-debug.log
+server/yarn-debug.log
+server/yarn-error.log
+server/package-lock.json
+server/backend.log
+server/.env.local
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+tmp_*.txt
+tmp_*.py
+
+# IDE caches
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build outputs
+build/
+.dart_tool/
+pubspec.lock
+
+# Flutter
+flutter_assets/
+
+# Web
+web/flutter_service_worker.js
+web/version.json
+
 
 # Claude Code local settings
 .claude/settings.local.json

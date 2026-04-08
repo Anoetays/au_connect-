@@ -427,19 +427,60 @@ class OnboardingController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Update application status to submitted
-      await OnboardingApplicationService.submitApplication();
-      
+      // Flush ALL collected fields + mark as submitted in one upsert
+      await OnboardingApplicationService.submitApplicationWithAllFields(
+        data: {
+          'first_name': state.firstName,
+          'last_name': state.lastName,
+          'full_name': '${state.firstName} ${state.lastName}'.trim(),
+          'email': state.email,
+          'phone': state.phone,
+          'country': state.country,
+          'language': state.language,
+          'preferred_name': state.preferredName,
+          'gender': state.gender,
+          'date_of_birth': state.dob,
+          'study_level': state.studyLevel,
+          'field_of_study': state.field,
+          'programme': state.programme,
+          'a_level_qualified': state.aLevelQualified == 'yes',
+          'school_attended': state.school,
+          'grades': state.grades,
+          'financing': state.financing,
+          'resides_in_zimbabwe': state.residesInZimbabwe,
+          'applicant_type': state.applicantType,
+          'accommodation': state.accommodation,
+          'disability': state.disability,
+          'disability_detail': state.disabilityDetail,
+          'kin_name': state.kinName,
+          'kin_relationship': state.kinRel,
+          'kin_phone': state.kinPhone,
+          'payment_method': state.paymentMethod,
+          if (state.certificateFileName != null)
+            'certificate_file_name': state.certificateFileName,
+          'status': 'submitted',
+          'submitted_at': DateTime.now().toIso8601String(),
+        },
+      );
+
       isLoading = false;
       notifyListeners();
-      
+
       showToast(context, 'Application submitted successfully!');
       goTo(25); // Success screen
     } catch (err) {
       isLoading = false;
       notifyListeners();
       debugPrint('Submit error: $err');
-      showToast(context, 'Failed to submit application: $err');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit application: $err'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 }

@@ -115,4 +115,44 @@ class OnboardingApplicationService {
       rethrow;
     }
   }
+
+  /// Submit and flush ALL onboarding fields in one upsert.
+  /// This guarantees every field is persisted even if individual
+  /// step-saves failed, and sets submitted_at for the admin dashboard.
+  static Future<void> submitApplicationWithAllFields({
+    required Map<String, dynamic> data,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Print the SQL needed in case any columns are missing
+    debugPrint('''
+-- Run this in Supabase SQL Editor if columns are missing:
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS full_name text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS preferred_name text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS language text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS field_of_study text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS a_level_qualified boolean;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_attended text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS grades text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS financing text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS resides_in_zimbabwe boolean;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS applicant_type text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS accommodation text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS disability text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS disability_detail text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS kin_name text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS kin_relationship text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS kin_phone text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS payment_method text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS certificate_file_name text;
+''');
+
+    await _supabase
+        .from('applications')
+        .upsert({'user_id': userId, ...data}, onConflict: 'user_id');
+
+    debugPrint('Full application submitted for user $userId');
+  }
 }
