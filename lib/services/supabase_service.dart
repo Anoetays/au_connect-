@@ -305,6 +305,26 @@ class SupabaseService {
     }
   }
 
+  /// Fetch all documents for the current user by user_id.
+  /// More reliable than querying by application_id when the
+  /// foreign key may not be set.
+  static Future<List<Map<String, dynamic>>> getDocumentsByUser() async {
+    final uid = currentUserId;
+    if (uid == null) return [];
+    try {
+      final res = await _db
+          .from('documents')
+          .select()
+          .eq('user_id', uid)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(res as List);
+    } catch (e) {
+      debugPrint('getDocumentsByUser error: $e');
+      // Fall back to empty — don't crash the dashboard
+      return [];
+    }
+  }
+
   /// Upload a document file to Supabase Storage, then save its record to the
   /// documents table.  Throws on any error so the caller can surface it.
   static Future<String?> uploadDocument({

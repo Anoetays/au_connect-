@@ -84,10 +84,14 @@ class _OnboardingBodyState extends State<_OnboardingBody>
         SupabaseService.getAnnouncements('applicant'),
         SupabaseService.getMyOfferLetter(),
         SupabaseService.getMyRejectionLetter(),
+        // Fetch docs by user_id — works even when application_id FK is missing
+        SupabaseService.getDocumentsByUser(),
       ]);
-      Map<String, dynamic>? app = results[1] as Map<String, dynamic>?;
-      List<Map<String, dynamic>> docs = [];
-      if (app != null) {
+      final Map<String, dynamic>? app = results[1] as Map<String, dynamic>?;
+      List<Map<String, dynamic>> docs =
+          (results[5] as List<Map<String, dynamic>>?) ?? [];
+      // If user-level query returned nothing, fall back to app-id query
+      if (docs.isEmpty && app != null) {
         final appId = _s(app['id']);
         if (appId.isNotEmpty) {
           docs = await SupabaseService.getDocuments(appId);
@@ -261,6 +265,11 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                     SliverToBoxAdapter(child: _buildOfferLetterBanner()),
                   if (_rejectionLetter != null && _offerLetter == null)
                     SliverToBoxAdapter(child: _buildRejectionLetterBanner()),
+                  // Awaiting decision — show when submitted but no letter yet
+                  if (_appState.applicationSubmitted &&
+                      _offerLetter == null &&
+                      _rejectionLetter == null)
+                    SliverToBoxAdapter(child: _buildAwaitingDecisionBanner()),
                   if (_application != null)
                     SliverToBoxAdapter(
                       child: Padding(
@@ -925,9 +934,9 @@ class _OnboardingBodyState extends State<_OnboardingBody>
                 iconText: '📄',
                 iconBg: const Color(0xFFFFEBEE),
                 iconColor: const Color(0xFFB71C1C),
-                value: _appState.documentsUploaded ? '5/5' : '0/5',
+                value: '${_appState.documentCount}',
                 label: 'Documents Submitted',
-                badgeText: _appState.documentsUploaded ? 'Done' : 'Action Needed',
+                badgeText: _appState.documentsUploaded ? 'Uploaded' : 'None Yet',
                 badgeBg: _appState.documentsUploaded ? const Color(0xFFD1FAE5) : const Color(0xFFFFEBEE),
                 badgeColor: _appState.documentsUploaded ? const Color(0xFF065F46) : const Color(0xFFD32F2F),
               ),
@@ -1119,6 +1128,46 @@ class _OnboardingBodyState extends State<_OnboardingBody>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAwaitingDecisionBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          const Color(0xFF1D4ED8).withValues(alpha: 0.07),
+          const Color(0xFF1D4ED8).withValues(alpha: 0.02),
+        ]),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1D4ED8).withValues(alpha: 0.3)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1D4ED8).withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1D4ED8).withValues(alpha: 0.25))),
+          child: const Icon(Icons.hourglass_top_rounded,
+              color: Color(0xFF1D4ED8), size: 22),
+        ),
+        const SizedBox(width: 16),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Application Complete — Awaiting Decision',
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 15, fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary)),
+            const SizedBox(height: 3),
+            Text(
+              'Your application is complete. You will be notified once a decision is made.',
+              style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.textMuted, height: 1.5)),
+          ],
+        )),
+      ]),
     );
   }
 

@@ -12,6 +12,7 @@ class ApplicationState extends ChangeNotifier {
 
   bool personalInfoComplete = false;
   bool documentsUploaded = false;
+  int documentCount = 0;
   bool programmeSelected = false;
   bool feePaid = false;
   bool applicationSubmitted = false;
@@ -71,6 +72,7 @@ class ApplicationState extends ChangeNotifier {
         (profile['full_name'] as String? ?? '').isNotEmpty &&
         (profile['phone'] as String? ?? '').isNotEmpty;
 
+    documentCount = documents.length;
     documentsUploaded = documents.isNotEmpty;
 
     programmeSelected = application != null &&
@@ -136,6 +138,7 @@ class ApplicationState extends ChangeNotifier {
   void reset() {
     personalInfoComplete = false;
     documentsUploaded = false;
+    documentCount = 0;
     programmeSelected = false;
     feePaid = false;
     applicationSubmitted = false;
