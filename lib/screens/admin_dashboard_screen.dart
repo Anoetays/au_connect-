@@ -84,13 +84,19 @@ String _adminInitials() {
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return parts[0][0].toUpperCase();
+    if (parts.length == 1) {
+      return parts[0][0].toUpperCase();
+    }
+    // parts is empty (fullName was all whitespace) — fall through to email
   }
   final email = user?.email ?? '';
   final local = email.split('@').first;
   final parts = local.split(RegExp(r'[._\-+]')).where((p) => p.isNotEmpty).toList();
   if (parts.length >= 2) {
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+  if (parts.length == 1) {
+    return parts[0][0].toUpperCase();
   }
   return local.isNotEmpty ? local[0].toUpperCase() : 'AU';
 }
@@ -3208,19 +3214,35 @@ class StudentsPage extends StatefulWidget {
 class _StudentsPageState extends State<StudentsPage> {
   List<Map<String, dynamic>> _students = [];
   bool _loading = true;
+  String? _error;
   StreamSubscription<List<Map<String, dynamic>>>? _streamSub;
 
   @override
   void initState() {
     super.initState();
-    _streamSub = SupabaseService.streamAllApplications().listen((apps) {
-      if (mounted) {
+    _subscribe();
+  }
+
+  void _subscribe() {
+    _streamSub?.cancel();
+    setState(() { _loading = true; _error = null; });
+    _streamSub = SupabaseService.streamAllApplications().listen(
+      (apps) {
+        if (!mounted) return;
         setState(() {
-          _students = apps.where((a) => a['status'] == 'Approved').toList();
+          _students = apps
+              .where((a) =>
+                  (_s(a['status']).toLowerCase()) == 'approved')
+              .toList();
           _loading = false;
+          _error = null;
         });
-      }
-    });
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() { _loading = false; _error = e.toString(); });
+      },
+    );
   }
 
   @override
@@ -3236,15 +3258,119 @@ class _StudentsPageState extends State<StudentsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Students', style: GoogleFonts.dmSerifDisplay(
-            fontSize: 28, fontWeight: FontWeight.w900, color: _kDark)),
+          // Header row
+          Row(
+            children: [
+              Text('Students',
+                  style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: _kDark)),
+              const Spacer(),
+              if (!_loading && _error == null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _kGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: _kGreen.withValues(alpha: 0.3)),
+                  ),
+                  child: Text('${_students.length} enrolled',
+                      style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _kGreen)),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
+
           if (_loading)
-            const Center(child: CircularProgressIndicator())
+            const Padding(
+              padding: EdgeInsets.only(top: 48),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            _buildErrorState()
           else if (_students.isEmpty)
-            Center(child: Text('No students yet', style: TextStyle(color: _kMuted)))
+            _buildEmptyState()
           else
             ..._students.map((s) => _StudentCard(student: s)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      margin: const EdgeInsets.only(top: 32),
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.school_outlined,
+                size: 28, color: _kMuted),
+          ),
+          const SizedBox(height: 16),
+          Text('No students found',
+              style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: _kDark)),
+          const SizedBox(height: 6),
+          Text(
+            'Approved applicants will appear here.',
+            style: GoogleFonts.dmSans(fontSize: 13, color: _kMuted),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Container(
+      margin: const EdgeInsets.only(top: 32),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, size: 36, color: _kRed),
+          const SizedBox(height: 12),
+          Text('Failed to load students',
+              style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _kDark)),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _subscribe,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Retry'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _kRed,
+              side: const BorderSide(color: _kRed),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
         ],
       ),
     );
@@ -3271,9 +3397,10 @@ class _StudentCard extends StatelessWidget {
             shape: BoxShape.circle,
             gradient: LinearGradient(colors: [_kGreen, _kGreen.withValues(alpha: 0.7)])),
           child: Center(child: Text(
-            _resolveApplicantName(student).isNotEmpty
-                ? _resolveApplicantName(student)[0].toUpperCase()
-                : '?',
+            () {
+              final n = _resolveApplicantName(student);
+              return n.isNotEmpty ? n[0].toUpperCase() : '?';
+            }(),
             style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white))),
         ),
         const SizedBox(width: 12),
