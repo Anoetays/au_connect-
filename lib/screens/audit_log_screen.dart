@@ -452,7 +452,7 @@ class _ToolbarState extends State<_Toolbar> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.calendar_today_outlined, size: 13, color: _kMuted),
           const SizedBox(width: 6),
-          Text('Mar 15, 2025', style: GoogleFonts.dmSans(fontSize: 12.5, color: _kDark)),
+          Text('Mar 15, 2026', style: GoogleFonts.dmSans(fontSize: 12.5, color: _kDark)),
         ]),
       ),
     ]);

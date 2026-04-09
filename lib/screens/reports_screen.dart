@@ -274,7 +274,7 @@ class _ReportsPageState extends State<ReportsPage> {
                     ).createShader(const Rect.fromLTWH(0, 0, 160, 36)),
                   )),),
                   const SizedBox(height: 3),
-                  Text('Generate, schedule and download data reports for 2024 intake.',
+                  Text('Generate, schedule and download data reports for 2026 intake.',
                     style: GoogleFonts.dmSans(fontSize: 12, color: _kMuted, fontWeight: FontWeight.w300)),
                 ]),
               ),
@@ -570,7 +570,7 @@ class _AppTypeCard extends StatelessWidget {
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Applications by Type', style: GoogleFonts.dmSerifDisplay(
               fontSize: 14, fontWeight: FontWeight.w700, color: _kDark)),
-            Text('Breakdown 2024', style: GoogleFonts.dmSans(
+            Text('Breakdown 2026', style: GoogleFonts.dmSans(
               fontSize: 10.5, color: _kMuted, fontWeight: FontWeight.w300)),
           ]),
         ]),

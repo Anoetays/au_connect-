@@ -833,7 +833,7 @@ class PostgradWelcomeScreen extends StatelessWidget {
                 style: GoogleFonts.dmSerifDisplay(
                     fontSize: 30, color: Colors.white, height: 1.2)),
             const SizedBox(height: 8),
-            Text('Africa University – 2024/25 Academic Year',
+            Text('Africa University – 2026/27 Academic Year',
                 style: GoogleFonts.dmSans(
                     fontSize: 13, color: Colors.white.withValues(alpha: 0.8))),
           ]),
@@ -1077,7 +1077,7 @@ class PostgradProgramScreen extends StatefulWidget {
 class _PostgradProgramState extends State<PostgradProgramScreen> {
   int _selected = 0;
   String _mode = 'Full-time';
-  String _intake = 'January 2025';
+  String _intake = 'January 2026';
   String _faculty = 'All Faculties';
 
   static const _programs = [
@@ -1133,7 +1133,7 @@ class _PostgradProgramState extends State<PostgradProgramScreen> {
               const SizedBox(height: 16),
               const _AULabel('Preferred Intake'),
               _AUDropdown(
-                items: const ['January 2025', 'August 2025', 'January 2026'],
+                items: const ['January 2026', 'August 2026', 'January 2027'],
                 value: _intake,
                 onChanged: (v) => setState(() => _intake = v!),
               ),
@@ -1394,7 +1394,7 @@ class _PostgradReviewState extends State<PostgradReviewScreen> {
               _ReviewSection(title: 'Programme', items: const [
                 ['PGDip in Business Administration', 'Programme'],
                 ['Faculty of Business & Management', 'Faculty'],
-                ['Full-time · January 2025', 'Mode · Intake'],
+                ['Full-time · January 2026', 'Mode · Intake'],
               ]),
               _ChecklistSection(title: 'Documents Uploaded', items: const [
                 ['✅', 'Degree Certificate'],
@@ -1524,7 +1524,7 @@ class PostgradSuccessScreen extends StatelessWidget {
           title: 'Application Submitted!',
           body:
               'Your postgraduate application has been received. We will review it and notify you within 10–14 working days.',
-          refNumber: 'REF: AU-PG-2025-0042',
+          refNumber: 'REF: AU-PG-2026-0042',
           accentColor: kCrimson,
           accentLight: kCrimsonLight,
           onDashboard: () => Navigator.pushNamedAndRemoveUntil(
@@ -1571,7 +1571,7 @@ class MastersWelcomeScreen extends StatelessWidget {
                 style: GoogleFonts.dmSerifDisplay(
                     fontSize: 30, color: Colors.white, height: 1.2)),
             const SizedBox(height: 8),
-            Text('Africa University – 2024/25 Academic Year',
+            Text('Africa University – 2026/27 Academic Year',
                 style: GoogleFonts.dmSans(
                     fontSize: 13, color: Colors.white.withValues(alpha: 0.8))),
           ]),
@@ -1847,7 +1847,7 @@ class MastersProgramScreen extends StatefulWidget {
 class _MastersProgramState extends State<MastersProgramScreen> {
   int _selected = 0;
   String _mode = 'Full-time';
-  String _intake = 'January 2025';
+  String _intake = 'January 2026';
 
   static const _programs = [
     ['Master of Business Administration (MBA)', 'Faculty of Business & Management', '2 Years · Full-time'],
@@ -1897,7 +1897,7 @@ class _MastersProgramState extends State<MastersProgramScreen> {
               const SizedBox(height: 16),
               const _AULabel('Preferred Intake'),
               _AUDropdown(
-                items: const ['January 2025', 'August 2025', 'January 2026'],
+                items: const ['January 2026', 'August 2026', 'January 2027'],
                 value: _intake,
                 focusColor: kMastersPrimary,
                 onChanged: (v) => setState(() => _intake = v!),
@@ -2368,7 +2368,7 @@ class _MastersReviewState extends State<MastersReviewScreen> {
                   editColor: kMastersPrimary,
                   items: const [
                     ['Master of Business Administration (MBA)', 'Programme'],
-                    ['Full-time · January 2025', 'Mode · Intake'],
+                    ['Full-time · January 2026', 'Mode · Intake'],
                   ]),
               _ReviewSection(
                   title: 'Research',
@@ -2524,7 +2524,7 @@ class MastersSuccessScreen extends StatelessWidget {
           title: 'Application Submitted!',
           body:
               'Your Master\'s application has been received. The admissions committee will review your proposal and notify you within 21 working days.',
-          refNumber: 'REF: AU-MSC-2025-0018',
+          refNumber: 'REF: AU-MSC-2026-0018',
           accentColor: kMastersPrimary,
           accentLight: kMastersLight,
           onDashboard: () => Navigator.pushNamedAndRemoveUntil(

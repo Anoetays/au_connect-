@@ -1104,8 +1104,8 @@ Africa University
           children: [
             TextSpan(text: 'Deadline approaching: ',
               style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: _kRed)),
-            const TextSpan(text: '2024 Local Applicant intake closes on '),
-            TextSpan(text: 'Mar 31, 2025',
+            const TextSpan(text: '2026 Local Applicant intake closes on '),
+            TextSpan(text: 'Mar 31, 2026',
               style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: _kRed)),
             const TextSpan(text: '. 89 applications are still pending review.'),
           ],
@@ -1146,7 +1146,7 @@ Africa University
                 color: _kDark, letterSpacing: -0.5)),
           ])),
           const SizedBox(height: 4),
-          Text('Review and process student applications for 2024 intake.',
+          Text('Review and process student applications for 2026 intake.',
             style: GoogleFonts.dmSans(fontSize: 13, color: _kMuted,
                 fontWeight: FontWeight.w300)),
         ])),
@@ -1259,7 +1259,7 @@ Africa University
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.calendar_today_outlined, size: 13, color: _kMuted),
               const SizedBox(width: 6),
-              Text('Jan – Mar 2025',
+              Text('Jan – Mar 2026',
                 style: GoogleFonts.dmSans(fontSize: 13, color: _kMuted)),
             ]),
           ),
@@ -1428,7 +1428,7 @@ Africa University
                 color: _kDark, letterSpacing: -0.5)),
           ])),
           const SizedBox(height: 4),
-          Text('Africa University — 2024 Academic Year',
+          Text('Africa University — 2026 Academic Year',
             style: GoogleFonts.dmSans(fontSize: 13, color: _kMuted,
                 fontWeight: FontWeight.w300)),
         ])),
@@ -2616,7 +2616,7 @@ class _OvTrendsCard extends StatelessWidget {
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Weekly Trends', style: GoogleFonts.dmSerifDisplay(
               fontSize: 13, fontWeight: FontWeight.w700, color: _kDark)),
-            Text('Submissions · 2025',
+            Text('Submissions · 2026',
               style: GoogleFonts.dmSans(fontSize: 10, color: _kMuted)),
           ]),
         ]),

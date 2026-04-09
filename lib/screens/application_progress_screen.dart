@@ -708,7 +708,7 @@ class _ApplicationProgressScreenState extends State<ApplicationProgressScreen> {
               Text('Dear $name,', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: _kInk)),
               const SizedBox(height: 10),
               Text(
-                'We are pleased to offer you admission to Africa University for the 2025 academic year. '
+                'We are pleased to offer you admission to Africa University for the 2026 academic year. '
                 'This offer is subject to confirmation of your qualifications and compliance with all university requirements.',
                 style: GoogleFonts.dmSans(fontSize: 13, color: _kInk, height: 1.6)),
               const SizedBox(height: 20),
@@ -716,7 +716,7 @@ class _ApplicationProgressScreenState extends State<ApplicationProgressScreen> {
               _offerRow('Application ID', appId),
               _offerRow('Programme', programme),
               _offerRow('Faculty', faculty),
-              _offerRow('Academic Year', '2025 / 2026'),
+              _offerRow('Academic Year', '2026 / 2027'),
               _offerRow('Mode of Study', 'Full-time'),
               const SizedBox(height: 20),
               Text(

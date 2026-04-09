@@ -38,13 +38,23 @@ const _kDocKeywords = <String, List<String>>{
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const _kDocumentTypes = [
+  'National ID',
+  'Transcript',
+  'Birth Certificate',
+  'Proof of Residence',
+  'Passport Photo',
+  'Visa Document',
+  'Other',
+];
+
 class _DocEntry {
-  final TextEditingController labelCtrl;
+  String? documentType;
   PlatformFile? file;
 
-  _DocEntry() : labelCtrl = TextEditingController();
+  _DocEntry();
 
-  void dispose() => labelCtrl.dispose();
+  void dispose() {}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,10 +84,10 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
     _docSub = DocumentService.streamMyDocuments().listen((rows) {
       if (!mounted) return;
       final statuses = <String, String?>{};
-      final notes = <String, String?>{};
+      final notes   = <String, String?>{};
       for (final doc in rows) {
         statuses[doc.documentType] = doc.verificationStatus;
-        notes[doc.documentType] = null;
+        notes[doc.documentType]    = null;
       }
       setState(() {
         _verificationStatus
@@ -93,9 +103,6 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
   @override
   void dispose() {
     _docSub?.cancel();
-    for (final e in _entries) {
-      e.dispose();
-    }
     super.dispose();
   }
 
@@ -137,10 +144,10 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
 
     setState(() => _entries[index].file = picked);
 
-    // ── warn if file name looks wrong for the label ───────────────────────
-    final label = _entries[index].labelCtrl.text.trim().toLowerCase();
-    if (label.isNotEmpty) {
-      _checkDocumentMismatch(index, label, picked.name.toLowerCase());
+    // ── warn if file name looks wrong for the selected type ───────────────
+    final docType = _entries[index].documentType;
+    if (docType != null) {
+      _checkDocumentMismatch(index, docType.toLowerCase(), picked.name.toLowerCase());
     }
   }
 
@@ -168,8 +175,9 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
     if (fileCategory == null || fileCategory == labelCategory) return;
 
     // Mismatch detected
-    final friendlyLabel =
-        _entries[index].labelCtrl.text.trim().isEmpty ? 'this slot' : '"${_entries[index].labelCtrl.text.trim()}"';
+    final friendlyLabel = _entries[index].documentType == null
+        ? 'this slot'
+        : '"${_entries[index].documentType}"';
     if (mounted) {
       showDialog(
         context: context,
@@ -211,7 +219,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
 
   bool _validate() {
     for (final e in _entries) {
-      if (e.labelCtrl.text.trim().isEmpty || e.file == null) return false;
+      if (e.documentType == null || e.file == null) return false;
     }
     return true;
   }
@@ -227,7 +235,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text(
-                'Each document card needs a label and a selected file.')),
+                'Each document row needs a type selected and a file chosen.')),
       );
       return;
     }
@@ -241,7 +249,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
       try {
         final url = await DocumentService.uploadDocument(
           fileName: e.file!.name,
-          documentType: e.labelCtrl.text.trim(),
+          documentType: e.documentType!,
           fileBytes: e.file!.bytes,
         ).timeout(
           const Duration(seconds: 30),
@@ -251,14 +259,14 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
 
         if (url != null) {
           uploadedDocuments.add(UploadedDocument(
-            type: e.labelCtrl.text.trim(),
+            type: e.documentType!,
             fileName: e.file!.name,
             url: url,
             uploadedAt: DateTime.now(),
           ));
         }
       } catch (err) {
-        errors.add('${e.labelCtrl.text.trim()}: $err');
+        errors.add('${e.documentType ?? 'Document'}: $err');
       }
     }
 
@@ -377,7 +385,7 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Add document cards below. Each card needs a label and a file (PDF, JPG or PNG).',
+                'Select a document type and attach a file for each row (PDF, JPG or PNG).',
                 style: GoogleFonts.dmSans(fontSize: 14, color: _kMuted),
               ),
               const SizedBox(height: 28),
@@ -385,14 +393,14 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
               // Document cards
               ...List.generate(_entries.length, (i) => _buildDocCard(i)),
 
-              // Plus button
+              // Add document button
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: _addEntry,
                 icon: const Icon(Icons.add_circle_outline,
                     size: 20, color: _kCrimsonLight),
                 label: Text(
-                  'Add Another Document',
+                  '+ Add Document',
                   style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.w600,
                       color: _kCrimsonLight,
@@ -488,9 +496,8 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
 
   Widget _buildDocCard(int index) {
     final entry = _entries[index];
-    final label = entry.labelCtrl.text;
-    final verif = _verificationStatus[label];
-    final note = _verificationNotes[label];
+    final verif = _verificationStatus[entry.documentType ?? ''];
+    final note  = _verificationNotes[entry.documentType ?? ''];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -548,39 +555,49 @@ class _DocumentUploadScreenState extends ConsumerState<DocumentUploadScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Label field
-                Text('Document Name / Label',
+                // Document type dropdown
+                Text('Document Type',
                     style: GoogleFonts.dmSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: _kInkMid,
                         letterSpacing: 0.3)),
                 const SizedBox(height: 6),
-                TextField(
-                  controller: entry.labelCtrl,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText:
-                        'e.g. Birth Certificate, Transcript, Passport…',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          const BorderSide(color: _kBorder),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: entry.documentType != null
+                          ? _kCrimsonLight
+                          : _kBorder,
+                      width: entry.documentType != null ? 1.5 : 1.0,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          const BorderSide(color: _kBorder),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: entry.documentType,
+                      isExpanded: true,
+                      hint: Text(
+                        'Select document type…',
+                        style: GoogleFonts.dmSans(
+                            fontSize: 13, color: _kMuted),
+                      ),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                          color: _kMuted),
+                      items: _kDocumentTypes
+                          .map((t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(t,
+                                    style: GoogleFonts.dmSans(
+                                        fontSize: 13, color: _kInk)),
+                              ))
+                          .toList(),
+                      onChanged: (val) {
+                        setState(() => entry.documentType = val);
+                      },
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(
-                          color: _kCrimsonLight, width: 1.5),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 14),
                   ),
                 ),
                 const SizedBox(height: 14),

@@ -958,7 +958,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
             const SizedBox(height: 12),
             _DetailRow(label: 'Type',              value: 'Merit-Based Scholarship'),
             const SizedBox(height: 12),
-            _DetailRow(label: 'Applicable Period', value: 'Academic Year 2025'),
+            _DetailRow(label: 'Applicable Period', value: 'Academic Year 2026'),
             const SizedBox(height: 12),
             _DetailRow(label: 'Status',            value: 'Active', isSuccess: true),
             const SizedBox(height: 20),

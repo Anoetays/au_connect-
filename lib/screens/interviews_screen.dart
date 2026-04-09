@@ -417,7 +417,7 @@ class _InterviewsPageState extends State<InterviewsPage> {
           ],
         )),
         const SizedBox(height: 3),
-        Text('Schedule and manage applicant interviews for 2025 intake.',
+        Text('Schedule and manage applicant interviews for 2026 intake.',
           style: GoogleFonts.dmSans(fontSize: 12, color: _kMuted, fontWeight: FontWeight.w300)),
       ])),
       const SizedBox(width: 12),

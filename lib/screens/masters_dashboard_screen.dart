@@ -928,9 +928,9 @@ class _MastersDashboardScreenState extends State<MastersDashboardScreen>
 
   Widget _buildDeadlinesCard() {
     final deadlines = [
-      ('Research Proposal', 'Jun 30, 2025', false),
-      ('Document Submission', 'Jul 15, 2025', false),
-      ('Application Fee', 'Jul 31, 2025', true),
+      ('Research Proposal', 'Jun 30, 2026', false),
+      ('Document Submission', 'Jul 15, 2026', false),
+      ('Application Fee', 'Jul 31, 2026', true),
     ];
     return Container(
       padding: const EdgeInsets.all(18),

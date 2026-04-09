@@ -76,7 +76,7 @@ class SupabaseService {
 
   // ── APPLICATIONS ─────────────────────────────────────────────────────────────
 
-  /// Submit a new application, auto-generating the applicant ID (AU-2025-XXXX).
+  /// Submit a new application, auto-generating the applicant ID (AU-2026-XXXX).
   /// Returns the generated applicant ID on success.
   static Future<String> submitApplication({
     required String applicantName,

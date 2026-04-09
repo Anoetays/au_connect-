@@ -712,7 +712,7 @@ class _TableRow extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SizedBox(
-          width: 924,
+          width: 930,
           child: Row(children: [
             SizedBox(width: 28, child: checkbox),
             const SizedBox(width: 8),

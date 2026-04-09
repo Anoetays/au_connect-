@@ -274,7 +274,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Text(
-          '© 2024 AU Connect',
+          '© 2026 AU Connect',
           style: TextStyle(
             fontSize: 11,
             color: AppTheme.textMuted,

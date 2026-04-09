@@ -494,7 +494,7 @@ class _VisaApplicationScreenState extends State<VisaApplicationScreen> {
             _offerRow('Student', name),
             _offerRow('Reference', appId),
             _offerRow('Programme', programme),
-            _offerRow('Academic Year', '2025 / 2026'),
+            _offerRow('Academic Year', '2026 / 2027'),
             _offerRow('Mode of Study', 'Full-time'),
             const SizedBox(height: 16),
             Text(

@@ -148,6 +148,7 @@ class _AuConnectAppState extends State<AuConnectApp>
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: const [
+        Locale('ar'),
         Locale('en'),
         Locale('fr'),
         Locale('pt'),
